@@ -1,0 +1,126 @@
+name: 2 - Continuous Delivery
+run-name: "${{ github.workflow }}"
+
+permissions: write-all
+
+on:
+  # Runs when the previous stage finished
+  workflow_run:
+    workflows: ["1 - Continuous Integration"]
+    types: [completed]
+
+env:
+  REGISTRY: ${{ vars.REGISTRY }}
+  MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
+  MLFLOW_EXPERIMENT_NAME: ${{ vars.MLFLOW_EXPERIMENT_NAME }}
+
+jobs:
+  train-model:
+    # Run only if previous stage finished successfully
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - name: Setup python environment
+        run: |
+          pip install uv
+          uv sync
+
+      # Log in to GitHub Container Registry (GHCR)
+      # We will get the serving image with tag staging from here to validate
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Download models image built in the previous stage
+      - name: Pull models image
+        run: docker pull ${{ env.REGISTRY }}/${{ github.repository }}/models:${{ github.sha }}
+
+      - name: Create OVPN file
+        run: echo "${{ secrets.OVPN_CONFIG_FILE }}" > DEI.ovpn
+
+      - name: Connect to VPN
+        uses: "kota65535/github-openvpn-connect-action@v3"
+        with:
+          config_file: DEI.ovpn
+          username: ${{ secrets.OVPN_USERNAME }}
+          password: ${{ secrets.OVPN_PASSWORD }}
+
+      - name: Ping test
+        run: |
+          set -x
+          ping -c 4 ${{ secrets.SERVING_VM_HOST }} || echo "ping failed with code $?"
+
+      # Run models container which runs the models script within
+      # The models script will select the "best" model and tag it with the sha of the commit in mlflow
+      - name: Train models
+        env:
+          MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
+          MLFLOW_EXPERIMENT_NAME: ${{ env.MLFLOW_EXPERIMENT_NAME }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          docker run ${{ env.REGISTRY }}/${{ github.repository }}/models:${{ github.sha }}
+
+      # Download serving image built in the previous stage
+      - name: Pull serving image
+        run: docker pull ${{ env.REGISTRY }}/${{ github.repository }}/serving:${{ github.sha }}
+
+      # Start serving image
+      # It is configured to load the model passed in env variable MLFLOW_MODEL_NAME and alias MODEL_ALIAS
+      - name: Start serving container
+        env:
+          MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
+          MODEL_ALIAS: ${{ github.sha }}
+        run: |
+          docker run -d \
+            --name serving-app \
+            --network host \
+            -e MLFLOW_TRACKING_URI \
+            -e MODEL_ALIAS \
+            ${{ env.REGISTRY }}/${{ github.repository }}/serving:${{ github.sha }}
+
+          # Wait for FastAPI to be ready
+          sleep 10
+
+      # Run end to end tests, this will test the serving app to see if it is working ok
+      # Additional metrics and verification can assess performance metrics as well
+      - name: Run Staging tests
+        run: uv run pytest tests/test_e2e.py -v
+
+      - name: Show container logs on failure
+        if: failure()
+        run: |
+          echo "=== FastAPI logs ==="
+          docker logs serving-app || true
+
+      # Log in to GitHub Container Registry (GHCR)
+      # This is the repository where we will upload our images once they have been validated
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Tag serving image with staging; this image will be used for further testing in staging
+      # Push serving image to repository
+      - name: Push serving staging image
+        run: |
+          docker tag ${{ env.REGISTRY }}/${{ github.repository }}/serving:${{ github.sha }} \
+                     ${{ env.REGISTRY }}/${{ github.repository }}/serving:staging
+          docker push ${{ env.REGISTRY }}/${{ github.repository }}/serving:staging
+
+      # Promote selected model to staging to be further validated
+      - name: Promote model to staging
+        env:
+          MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
+          MLFLOW_EXPERIMENT_NAME: ${{ env.MLFLOW_EXPERIMENT_NAME }}
+          FROM_ALIAS: ${{ github.sha }}
+          TO_ALIAS: staging
+        run: |
+          set -xe
+          uv run python -u model_promotion/promote_model.py

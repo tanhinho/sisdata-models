@@ -1,0 +1,60 @@
+name: 1 - Continuous Integration
+run-name: "${{ github.workflow }}"
+
+permissions: write-all
+
+on:
+  push:
+    branches: [main]
+
+  workflow_dispatch:
+
+env:
+  REGISTRY: ${{ vars.REGISTRY }}
+
+jobs:
+  test-unit:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - name: Setup python environment
+        run: |
+          pip install uv
+          uv sync
+      - name: Run unit tests
+        run: |
+          uv run pytest tests/test_api.py -v
+          uv run pytest tests/test_train.py -v
+
+  build-images:
+    # Passed tests, now build docker images for models, serving and mlflow
+    runs-on: ubuntu-latest
+    needs: test-unit
+    steps:
+      - uses: actions/checkout@v4
+
+      # Build images for serving and models services using Docker Compose
+      - name: Build images with Docker Compose
+        run: |
+          docker compose -f docker-compose.yml build models serving
+
+      # Log in to GitHub Container Registry (GHCR)
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Tag and push models image
+      - name: Push models image
+        run: |
+          docker tag models:latest ${{ env.REGISTRY }}/${{ github.repository }}/models:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/${{ github.repository }}/models:${{ github.sha }}
+
+      # Tag and push serving image
+      - name: Push serving staging image
+        run: |
+          docker tag serving:latest ${{ env.REGISTRY }}/${{ github.repository }}/serving:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/${{ github.repository }}/serving:${{ github.sha }}

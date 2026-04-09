@@ -1,0 +1,122 @@
+name: 3 - Continuous Staging
+run-name: "${{ github.workflow }}"
+
+permissions: write-all
+
+on:
+  # Runs when the previous stage finished
+  workflow_run:
+    workflows: ["2 - Continuous Delivery"]
+    types: [completed]
+
+  workflow_dispatch:
+
+env:
+  REGISTRY: ${{ vars.REGISTRY }}
+  MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
+  MLFLOW_EXPERIMENT_NAME: ${{ vars.MLFLOW_EXPERIMENT_NAME }}
+
+jobs:
+  stage-tests:
+    # Run only if previous stage finished successfully
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.13" }
+      - name: Setup python environment
+        run: |
+          pip install uv
+          uv sync
+
+      # Log in to GitHub Container Registry (GHCR)
+      # We will get the serving image with tag staging from here to validate
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull serving image
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ github.repository }}/serving:staging
+
+      # ===================== Setup serving container =====================
+      # Save image BEFORE connecting to VPN to avoid routing issues
+      - name: Save serving image to tar
+        run: docker save ${{ env.REGISTRY }}/${{ github.repository }}/serving:staging -o /tmp/serving_staging.tar
+
+      # ===================== Setup VPN to access DEI network =====================
+      - name: Create OVPN file
+        run: |
+          echo "${{ secrets.OVPN_CONFIG_FILE }}" > DEI.ovpn
+
+          # --- Split Tunneling Fix ---
+          # 1. Ignore the server's directive to route ALL traffic through the VPN
+          echo "pull-filter ignore \"redirect-gateway\"" >> DEI.ovpn
+
+          # 2. Manually route the private networks through the VPN
+          # Route 10.0.0.0/8 (Covers MLflow at 10.17.x.x and internal VMs)
+          echo "route 10.0.0.0 255.0.0.0" >> DEI.ovpn
+
+          # 3. Explicitly route the Serving VM host (just in case it's not in 10.x.x.x)
+          echo "route ${{ secrets.SERVING_VM_HOST }} 255.255.255.255" >> DEI.ovpn
+
+      - name: Connect to VPN
+        uses: "kota65535/github-openvpn-connect-action@v3"
+        with:
+          config_file: DEI.ovpn
+          username: ${{ secrets.OVPN_USERNAME }}
+          password: ${{ secrets.OVPN_PASSWORD }}
+
+      - name: Ping test
+        run: |
+          set -x
+          ping -c 4 ${{ secrets.SERVING_VM_HOST }} || echo "ping failed with code $?"
+
+      - name: Copy serving image to staging VM
+        run: |
+          sshpass -p "${{ secrets.SERVING_VM_PASSWORD }}" scp -o StrictHostKeyChecking=no -P 22 /tmp/serving_staging.tar ${{ secrets.SERVING_VM_USERNAME }}@${{ secrets.SERVING_VM_HOST }}:~/docker_images/
+
+      - name: Connect to DEI server via SSH and prepare environment
+        run: |
+          sshpass -p "${{ secrets.SERVING_VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ secrets.SERVING_VM_USERNAME }}@${{ secrets.SERVING_VM_HOST }} \
+          "docker rm -f serving-app-staging || true && docker load --input ~/docker_images/serving_staging.tar"
+
+      - name: Start serving container
+        run: |
+          sshpass -p "${{ secrets.SERVING_VM_PASSWORD }}" ssh -o StrictHostKeyChecking=no ${{ secrets.SERVING_VM_USERNAME }}@${{ secrets.SERVING_VM_HOST }} \
+          "docker run -d \
+            --name serving-app-staging \
+            -p 8080:8080 \
+            -e MLFLOW_TRACKING_URI=${{ env.MLFLOW_TRACKING_URI }} \
+            -e MODEL_ALIAS=${{ github.sha }} \
+            ${{ env.REGISTRY }}/${{ github.repository }}/serving:staging && sleep 10"
+
+      # ===================== Run tests against staging environment =====================
+      # Here we are just running the same E2E tests, but in real systems we would run
+      # the system in a preproduction environment, that would manually or automatically
+      # apply  A/B testing, shadow testing and other approaches to measure
+      # and validate the performance of the model before moving to production
+      - name: Run Staging tests
+        env:
+          FASTAPI_BASE_URL: http://${{ secrets.SERVING_VM_HOST }}:8080
+        run: uv run pytest tests/test_e2e.py -v
+
+      # When reaching the stage both the serving and the model will have passed
+      # the necessary tests and we promote to production
+      - name: Promote model to production
+        env:
+          MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
+          FROM_ALIAS: staging
+          TO_ALIAS: production
+        run: uv run python model_promotion/promote_model.py
+
+      # Tag the serving image with production tag
+      # This is the image that will be used to deploy the system
+      - name: Push production container tag
+        run: |
+          docker tag ${{ env.REGISTRY }}/${{ github.repository }}/serving:staging \
+                     ${{ env.REGISTRY }}/${{ github.repository }}/serving:production
+          docker push ${{ env.REGISTRY }}/${{ github.repository }}/serving:production
