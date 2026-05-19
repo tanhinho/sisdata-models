@@ -30,7 +30,7 @@ jobs:
 
   build-images:
     # Passed tests, now build docker images for models, serving and mlflow
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: test-unit
     steps:
       - uses: actions/checkout@v4
