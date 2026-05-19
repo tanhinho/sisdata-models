@@ -36,3 +36,6 @@ services:
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://localhost:5050}
       MLFLOW_EXPERIMENT_NAME: ${MLFLOW_EXPERIMENT_NAME:-sisdata}
       COMMIT_SHA: "local-dev"
+
+volumes:
+  mlflow-data:
