@@ -15,3 +15,6 @@ wheels/
 # IDE
 .vscode/
 .idea/
+
+# Datasets
+data/
