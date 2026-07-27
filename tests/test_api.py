@@ -11,13 +11,13 @@ def client():
 
 # ==== Test cases for the predict endpoint ====
 
-def test_predict_without_model(client, sample_payload):
+def test_predict_without_model(client):
     """Test the /predict endpoint without a real model."""
     # TODO: Complete this test
     assert True  # Placeholder assertion. Replace with actual test logic
 
 
-def test_predict_with_model(client, sample_payload):
+def test_predict_with_model(client):
     """Test the /predict endpoint with a real model."""
     # TODO: Complete this test
     assert True  # Placeholder assertion. Replace with actual test logic
