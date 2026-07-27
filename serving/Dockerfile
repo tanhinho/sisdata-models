@@ -6,6 +6,7 @@ RUN pip install uv
 WORKDIR /app
 COPY serving/* .
 COPY ../pyproject.toml .
+COPY ../uv.lock .
 
 # Sync dependencies
 RUN uv sync --frozen
