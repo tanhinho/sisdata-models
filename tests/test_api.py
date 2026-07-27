@@ -14,13 +14,13 @@ def client():
 def test_predict_without_model(client, sample_payload):
     """Test the /predict endpoint without a real model."""
     # TODO: Complete this test
-    pass
+    assert True  # Placeholder assertion. Replace with actual test logic
 
 
 def test_predict_with_model(client, sample_payload):
     """Test the /predict endpoint with a real model."""
     # TODO: Complete this test
-    pass
+    assert True  # Placeholder assertion. Replace with actual test logic
 
 
 # ==== Test cases for health check endpoints ====
