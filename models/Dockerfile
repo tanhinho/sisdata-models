@@ -11,5 +11,4 @@ COPY ../pyproject.toml .
 RUN uv sync --frozen
 
 # Run the pipeline. 
-# We chain the scripts: first download data, then preprocess (generate artifacts) and finally train (log artifacts)
-CMD uv run python preprocess.py --train-size 100000 && uv run python run_all_models.py
+CMD uv run python run_models.py

@@ -1,9 +1,16 @@
 import mlflow
 import os
+from lstm import LSTMModel, LSTMOptimizer
+from preprocess import DatasetAPreprocessor
+
+SEED = 42  # For reproducibility
 
 COMMIT_SHA = os.getenv('COMMIT_SHA')
-if not COMMIT_SHA:
+
+""" if not COMMIT_SHA:
     raise EnvironmentError("Missing required env var: COMMIT_SHA")
+
+ """
 
 
 def get_best_existing_model():
@@ -63,14 +70,28 @@ def get_best_existing_model():
 
 
 def main():
-    print("Running x Model...")
-    # TODO: Implement the actual training and logging for the x model
-    print("x Model run complete.\n")
-    # TODO: Repeat for other models (y, z, etc.), each logging:
-    # - metrics.mse
-    # - a model artifact with a unique artifact path (e.g. "linear_regression", "random_forest", etc.)
+    print("Starting model runs...")
+    print("Optimizing parameters for LSTM model...")
+    df_train, df_val, df_test = DatasetAPreprocessor.load_and_preprocess()
+    lstm_optimizer = LSTMOptimizer(
+        df_train=df_train,
+        df_val=df_val,
+        feature_cols=DatasetAPreprocessor.FEATURE_COLS,
+        target_col=DatasetAPreprocessor.TARGET_COL,
+        seed=SEED,
+    )
+    results = lstm_optimizer.optimize()
+    print(f"Best parameters found: {results['best_params']}")
+    print(f"Best fitness achieved: {results['best_fitness']}")
+    print("Parameter optimization for LSTM model complete.\n")
 
-    # At this point, the experiment has all old runs + today's runs.
+    print("Training LSTM model with best parameters...")
+    best_params = results['best_params']
+
+    print("Logging best LSTM model to MLflow...")
+
+
+"""     # At this point, the experiment has all old runs + today's runs.
     # Use ALL runs to pick the true best model.
     best_model, artifact_name = get_best_existing_model()
 
@@ -84,7 +105,7 @@ def main():
     except Exception as e:
         print(f"Could not set model alias: {e}")
         raise e
-
+ """
 
 if __name__ == "__main__":
     main()

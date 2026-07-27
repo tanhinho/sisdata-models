@@ -21,14 +21,6 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.13" }
-      - name: Setup python environment
-        run: |
-          pip install uv
-          uv sync
-
       # Log in to GitHub Container Registry (GHCR)
       # We will get the serving image with tag staging from here to validate
       - uses: docker/login-action@v3
@@ -40,21 +32,6 @@ jobs:
       # Download models image built in the previous stage
       - name: Pull models image
         run: docker pull ${{ env.REGISTRY }}/${{ github.repository }}/models:${{ github.sha }}
-
-      - name: Create OVPN file
-        run: echo "${{ secrets.OVPN_CONFIG_FILE }}" > DEI.ovpn
-
-      - name: Connect to VPN
-        uses: "kota65535/github-openvpn-connect-action@v3"
-        with:
-          config_file: DEI.ovpn
-          username: ${{ secrets.OVPN_USERNAME }}
-          password: ${{ secrets.OVPN_PASSWORD }}
-
-      - name: Ping test
-        run: |
-          set -x
-          ping -c 4 ${{ secrets.SERVING_VM_HOST }} || echo "ping failed with code $?"
 
       # Run models container which runs the models script within
       # The models script will select the "best" model and tag it with the sha of the commit in mlflow

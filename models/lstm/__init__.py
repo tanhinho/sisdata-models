@@ -1,5 +1,3 @@
-"""LSTM models"""
-
 from .lstm import LSTMModel
-from .parameter_optimization import EvolutionaryLSTMOptimizer
-__all__ = ["LSTMModel", "EvolutionaryLSTMOptimizer"]
+from .lstm_optimizer import LSTMOptimizer
+__all__ = ["LSTMModel", "LSTMOptimizer"]

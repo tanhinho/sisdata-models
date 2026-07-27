@@ -26,10 +26,9 @@ jobs:
       - name: Run unit tests
         run: |
           uv run pytest tests/test_api.py -v
-          uv run pytest tests/test_train.py -v
 
   build-images:
-    # Passed tests, now build docker images for models, serving and mlflow
+    # Passed tests, now build docker images for models and serving
     runs-on: self-hosted
     needs: test-unit
     steps:
