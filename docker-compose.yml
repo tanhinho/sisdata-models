@@ -16,8 +16,6 @@ services:
       dockerfile: serving/Dockerfile
     container_name: serving
     image: serving:latest
-    depends_on:
-      - mlflow
     ports:
       - "8080:8080"
     environment:
@@ -30,8 +28,6 @@ services:
       dockerfile: models/Dockerfile
     container_name: models
     image: models:latest
-    depends_on:
-      - mlflow
     environment:
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://localhost:5050}
       MLFLOW_EXPERIMENT_NAME: ${MLFLOW_EXPERIMENT_NAME:-sisdata}
