@@ -1,10 +1,8 @@
 import mlflow
 import os
-from lstm import LSTMModel, LSTMOptimizer
-from preprocess import DatasetAPreprocessor
+from lstm import run_lstm
 
-SEED = 42  # For reproducibility
-
+SEED = 42
 COMMIT_SHA = os.getenv('COMMIT_SHA')
 
 """ if not COMMIT_SHA:
@@ -71,23 +69,7 @@ def get_best_existing_model():
 
 def main():
     print("Starting model runs...")
-    print("Optimizing parameters for LSTM model...")
-    df_train, df_val, df_test = DatasetAPreprocessor.load_and_preprocess()
-    lstm_optimizer = LSTMOptimizer(
-        df_train=df_train,
-        df_val=df_val,
-        feature_cols=DatasetAPreprocessor.FEATURE_COLS,
-        target_col=DatasetAPreprocessor.TARGET_COL,
-        seed=SEED,
-    )
-    results = lstm_optimizer.optimize()
-    print(f"Best parameters found: {results['best_params']}")
-    print(f"Best fitness achieved: {results['best_fitness']}")
-    print("Parameter optimization for LSTM model complete.\n")
-
-    print("Training LSTM model with best parameters...")
-    best_params = results['best_params']
-
+    run_lstm(seed=SEED)
     print("Logging best LSTM model to MLflow...")
 
 

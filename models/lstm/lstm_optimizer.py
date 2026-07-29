@@ -13,7 +13,8 @@ class LSTMOptimizer:
         self,
         df_train: pd.DataFrame,
         df_val: pd.DataFrame,
-        feature_cols: list,
+        input_size: int,
+        feature_cols: list[str],
         target_col: str,
         n_trials: int = 15,
         seed: Optional[int] = None,
@@ -21,35 +22,12 @@ class LSTMOptimizer:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.df_train = df_train
         self.df_val = df_val
+        self.input_size = input_size
         self.feature_cols = feature_cols
         self.target_col = target_col
         self.n_trials = n_trials
         self.seed = seed
         self.study: Optional[optuna.Study] = None
-
-    def _create_sequences(self, df: pd.DataFrame, seq_length: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Convert pandas DataFrame to sequence tensors.
-
-        Args:
-            df (pd.DataFrame): Input dataframe.
-            seq_length (int): Length of the sequences to create.
-
-        Returns:
-            Tuple[torch.Tensor, torch.Tensor]: Feature and target tensors.
-        """
-        xs, ys = [], []
-
-        features = df[self.feature_cols].values
-        targets = df[self.target_col].values
-
-        for i in range(len(df) - seq_length):
-            xs.append(features[i: i + seq_length])
-            ys.append([targets[i + seq_length]])  # Enclosing in [] keeps shape as (N, 1)
-
-        X_tensor = torch.tensor(np.array(xs), dtype=torch.float32, device=self.device)
-        y_tensor = torch.tensor(np.array(ys), dtype=torch.float32, device=self.device)
-
-        return X_tensor, y_tensor
 
     def _objective(self, trial: optuna.Trial) -> float:
         """Objective function for Optuna to minimize validation loss.
@@ -69,28 +47,22 @@ class LSTMOptimizer:
         batch_size = trial.suggest_categorical("batch_size", [16, 32, 64, 128])
         epochs = trial.suggest_int("epochs", 10, 50)
 
-        # Slice DataFrames dynamically for this trial's sequence length
-        X_train, y_train = self._create_sequences(self.df_train, seq_length)
-        X_val, y_val = self._create_sequences(self.df_val, seq_length)
-
         # Create model instance
-        input_size = len(self.feature_cols)
-        output_size = y_train.shape[1]
-
         model = LSTMModel(
-            input_size=input_size,
-            output_size=output_size,
+            input_size=self.input_size,
+            output_size=1,
             hidden_size=hidden_size,
             num_layers=num_layers,
             dropout=dropout,
+            feature_cols=self.feature_cols,
+            target_col=self.target_col,
         )
 
         # Train and evaluate
         val_loss = model.fit_and_evaluate(
-            X_train=X_train,
-            y_train=y_train,
-            X_val=X_val,
-            y_val=y_val,
+            df_train=self.df_train,
+            df_test=self.df_val,
+            seq_length=seq_length,
             lr=learning_rate,
             epochs=epochs,
             batch_size=batch_size,
