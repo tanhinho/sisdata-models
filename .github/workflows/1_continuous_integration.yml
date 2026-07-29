@@ -4,9 +4,6 @@ run-name: "${{ github.workflow }}"
 permissions: write-all
 
 on:
-  push:
-    branches: [master]
-
   workflow_dispatch:
 
 env:
