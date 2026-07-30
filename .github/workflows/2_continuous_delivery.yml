@@ -95,9 +95,3 @@ jobs:
         run: |
           set -xe
           uv run python -u model_promotion/promote_model.py
-
-      # The machine being used for the job has very low disk space, so we need to clean up the cache and prune unused Docker resources to free up space.
-      - name: Clean up cache
-        run: |
-          uv cache clean
-          docker system prune -af
