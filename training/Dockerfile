@@ -12,4 +12,4 @@ COPY uv.lock .
 RUN uv sync --frozen
 
 # Run the pipeline. 
-CMD uv run python run_training.py
+CMD ["uv", "run", "python", "run_training.py"]
