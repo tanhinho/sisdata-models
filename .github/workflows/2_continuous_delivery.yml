@@ -21,6 +21,8 @@ jobs:
     runs-on: self-hosted
 
     steps:
+      # Checkout the repository to access the code and configuration files
+      - uses: actions/checkout@v4
       # Log in to GitHub Container Registry (GHCR)
       # We will get the serving image with tag staging from here to validate
       - uses: docker/login-action@v3
