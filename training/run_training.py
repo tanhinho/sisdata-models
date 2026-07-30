@@ -11,8 +11,8 @@ SEED = 42
 COMMIT_SHA = os.getenv('COMMIT_SHA')
 MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI', 'http://localhost:5050')
 
-DATASETS: List[BaseDataset] = [DatasetA]
-MODELS: List[BaseModel] = [LSTMModel]
+DATASETS: List[type[BaseDataset]] = [DatasetA]
+MODELS: List[type[BaseModel]] = [LSTMModel]
 
 if not COMMIT_SHA:
     raise EnvironmentError("Missing required env var: COMMIT_SHA")
