@@ -4,7 +4,7 @@ FROM python:3.13-slim
 RUN pip install uv
 
 WORKDIR /app
-COPY models/ .
+COPY training/ .
 COPY pyproject.toml .
 COPY uv.lock .
 
@@ -12,4 +12,4 @@ COPY uv.lock .
 RUN uv sync --frozen
 
 # Run the pipeline. 
-CMD uv run python run_models.py
+CMD uv run python run_training.py

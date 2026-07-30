@@ -25,9 +25,9 @@ services:
   models:
     build:
       context: .
-      dockerfile: models/Dockerfile
-    container_name: models
-    image: models:latest
+      dockerfile: training/Dockerfile
+    container_name: training
+    image: training:latest
     environment:
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://localhost:5050}
       MLFLOW_EXPERIMENT_NAME: ${MLFLOW_EXPERIMENT_NAME:-sisdata}

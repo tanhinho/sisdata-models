@@ -11,7 +11,7 @@ This repository contains the machine learning models and serving code used by th
 
 ## Project layout
 
-- `models/` – model training, preprocessing and packaging.
+- `training/` – model training, preprocessing and packaging.
 - `serving/` – FastAPI app that serves trained models.
 - `mlflow/` – MLflow tracking server Docker image.
 - `model_promotion/` – scripts to promote models between stages using MLflow.

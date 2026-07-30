@@ -1,14 +1,21 @@
+from typing import List
+
 import mlflow
 import os
-from lstm import run_lstm
+from datasets import DatasetA
+from models import BaseModel, LSTMModel
+from datasets import BaseDataset
 
 SEED = 42
+
 COMMIT_SHA = os.getenv('COMMIT_SHA')
+MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI', 'http://localhost:5050')
 
-""" if not COMMIT_SHA:
+DATASETS: List[BaseDataset] = [DatasetA]
+MODELS: List[BaseModel] = [LSTMModel]
+
+if not COMMIT_SHA:
     raise EnvironmentError("Missing required env var: COMMIT_SHA")
-
- """
 
 
 def get_best_existing_model():
@@ -68,9 +75,34 @@ def get_best_existing_model():
 
 
 def main():
-    print("Starting model runs...")
-    run_lstm(seed=SEED)
-    print("Logging best LSTM model to MLflow...")
+    print("Starting MLflow tracking...")
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    mlflow.set_experiment("sisdata")
+    print("MLflow tracking started.")
+    print("Starting training runs...")
+    for dataset in DATASETS:
+        mlflow.start_run(run_name=f"Dataset: {dataset.__name__}", nested=True)
+        print(f"Starting runs for dataset: {dataset.__name__}")
+        for model_cls in MODELS:
+            mlflow.start_run(run_name=f"Model: {model_cls.__name__}", nested=True)
+
+            optimizer = model_cls.OPTIMIZER(dataset=dataset, seed=SEED)
+            print(f"Running optimizer {optimizer.__name__} for dataset {dataset.__name__}...")
+            result = optimizer.optimize(dataset=dataset, seed=SEED)
+            print(f"Optimizer {optimizer.__name__} completed for dataset {dataset.__name__}.\n")
+            print(f"Best parameters found: {result['best_params']}")
+            print(f"Best loss achieved: {result['best_loss']}\n")
+
+            print(f"Training model {model_cls.__name__} with best parameters...")
+            model = model_cls(dataset=dataset, is_optimizing=False, **result['best_params'])
+            test_loss = model.fit_and_evaluate(run_name=f"optimized_{model_cls.__name__}")
+            print(f"Model {model_cls.__name__} trained. Test loss: {test_loss}\n")
+
+            mlflow.log_params(result['best_params'])
+            mlflow.log_metrics({"test_loss": test_loss})
+            mlflow.end_run()
+        print(f"Completed all models for dataset {dataset.__name__}.\n")
+        mlflow.end_run()
 
 
 """     # At this point, the experiment has all old runs + today's runs.
