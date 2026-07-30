@@ -1,6 +1,5 @@
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
 import optuna
-import torch
 from models import LSTMModel
 from optimizers import BaseOptimizer
 
