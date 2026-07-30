@@ -5,6 +5,7 @@ import os
 from datasets import DatasetA
 from models import BaseModel, LSTMModel
 from datasets import BaseDataset
+from optimizers import BaseOptimizer, LSTMOptimizer
 
 SEED = 42
 
@@ -12,7 +13,7 @@ COMMIT_SHA = os.getenv('COMMIT_SHA')
 MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI', 'http://localhost:5050')
 
 DATASETS: List[type[BaseDataset]] = [DatasetA]
-MODELS: List[type[BaseModel]] = [LSTMModel]
+OPTIMIZERS: List[type[BaseOptimizer]] = [LSTMOptimizer]
 
 if not COMMIT_SHA:
     raise EnvironmentError("Missing required env var: COMMIT_SHA")
@@ -83,16 +84,16 @@ def main():
     for dataset in DATASETS:
         mlflow.start_run(run_name=f"Dataset: {dataset.__name__}", nested=True)
         print(f"Starting runs for dataset: {dataset.__name__}")
-        for model_cls in MODELS:
-            mlflow.start_run(run_name=f"Model: {model_cls.__name__}", nested=True)
+        for optimizer_cls in OPTIMIZERS:
+            mlflow.start_run(run_name=f"Optimizer: {optimizer_cls.__name__}", nested=True)
 
-            optimizer = model_cls.OPTIMIZER(dataset=dataset, seed=SEED)
+            optimizer = optimizer_cls(dataset=dataset, seed=SEED)
             print(f"Running optimizer {optimizer.__name__} for dataset {dataset.__name__}...")
             result = optimizer.optimize(dataset=dataset, seed=SEED)
             print(f"Optimizer {optimizer.__name__} completed for dataset {dataset.__name__}.\n")
             print(f"Best parameters found: {result['best_params']}")
             print(f"Best loss achieved: {result['best_loss']}\n")
-
+            model_cls = optimizer_cls.MODEL
             print(f"Training model {model_cls.__name__} with best parameters...")
             model = model_cls(dataset=dataset, is_optimizing=False, **result['best_params'])
             test_loss = model.fit_and_evaluate(run_name=f"optimized_{model_cls.__name__}")

@@ -1,11 +1,13 @@
 from typing import Any, Dict, Tuple
 import optuna
-from models import LSTMModel
-from optimizers import BaseOptimizer
+
+from models.lstm_model import LSTMModel
+from optimizers.base_optimizer import BaseOptimizer
 
 
 class LSTMOptimizer(BaseOptimizer):
     """Optuna optimizer that finds the best hyperparameters for an LSTM model."""
+    MODEL = LSTMModel
 
     def _objective_impl(self, trial: optuna.Trial) -> Tuple[float, Dict[str, Any]]:
         # Sample hyperparameters
@@ -17,10 +19,8 @@ class LSTMOptimizer(BaseOptimizer):
         batch_size = trial.suggest_categorical("batch_size", [16, 32, 64, 128])
         epochs = trial.suggest_int("epochs", 10, 50)
 
-        input_size = self.dataset.df_train[self.dataset.FEATURE_COLS].shape[1]
-
         # Create model instance
-        model = LSTMModel(
+        model = self.MODEL(
             dataset=self.dataset,
             hidden_size=hidden_size,
             num_layers=num_layers,

@@ -2,14 +2,11 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from datasets import BaseDataset
-from optimizers import LSTMOptimizer
+from datasets.base_dataset import BaseDataset
 from .utils import create_sequences
 
 
 class LSTMModel(nn.Module):
-    OPTIMIZER = LSTMOptimizer
-
     def __init__(
         self,
         dataset: BaseDataset,

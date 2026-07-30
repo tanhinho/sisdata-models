@@ -1,4 +1,4 @@
-from datasets import BaseDataset
+from datasets.base_dataset import BaseDataset
 
 
 class DatasetA(BaseDataset):

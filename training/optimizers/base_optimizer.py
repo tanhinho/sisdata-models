@@ -2,7 +2,8 @@ from abc import ABC
 from typing import Any, Dict, Optional
 import optuna
 import torch
-from datasets import BaseDataset
+
+from datasets.base_dataset import BaseDataset
 
 
 class BaseOptimizer(ABC):
@@ -13,6 +14,7 @@ class BaseOptimizer(ABC):
         n_trials (int): The number of optimization trials.
         seed (Optional[int]): The random seed for reproducibility.
     """
+    MODEL = None  # Child classes must override this with the model class to optimize.
 
     def __init__(
         self,

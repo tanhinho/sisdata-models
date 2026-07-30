@@ -1,12 +1,9 @@
 from abc import ABC, abstractmethod
-
 import mlflow
-from datasets import BaseDataset
-
 import torch
 import torch.nn as nn
 
-from optimizers import BaseOptimizer
+from datasets.base_dataset import BaseDataset
 
 
 class BaseModel(nn.Module, ABC):
@@ -17,9 +14,6 @@ class BaseModel(nn.Module, ABC):
         dataset (BaseDataset): The dataset object containing training, validation, and test data.
         is_optimizing (bool): Flag indicating if the model is being optimized (True) or trained normally (False).
     """
-
-    # Default optimizer for the model. Child classes must override this.
-    OPTIMIZER: BaseOptimizer = None
 
     def __init__(
         self,
