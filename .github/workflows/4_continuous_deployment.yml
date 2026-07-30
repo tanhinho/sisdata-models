@@ -40,19 +40,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - run:
-
-      - name: Prepare environment
+      - name: Start production serving
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME: ${{ github.repository }}
+          IMAGE_TAG: production
+          SERVING_PORT: 9001
+          MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
+          MLFLOW_MODEL_NAME: ${{ env.MLFLOW_MODEL_NAME }}
         run: |
-          docker pull ${{ env.REGISTRY }}/${{ github.repository }}/serving:production
-          # Stop and remove existing serving container if running
-          docker rm -f serving-app-production || true
-
-      - name: Run production
-        run: |
-          docker run -d \
-            --name serving-app-production \
-            -p 9001:8080 \
-            -e ${{ env.MLFLOW_TRACKING_URI }} \
-            -e ${{ env.MLFLOW_MODEL_NAME }} \
-            ${{ env.REGISTRY }}/${{ github.repository }}/serving:production
+          docker compose up -d --pull always --force-recreate serving

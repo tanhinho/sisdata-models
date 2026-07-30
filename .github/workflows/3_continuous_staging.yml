@@ -39,23 +39,21 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Pull serving image
-        run: |
-          docker pull ${{ env.REGISTRY }}/${{ github.repository }}/serving:staging
 
-      # ===================== Setup serving container =====================
-      # Save image BEFORE connecting to VPN to avoid routing issues
-      - name: Save serving image to tar
-        run: docker save ${{ env.REGISTRY }}/${{ github.repository }}/serving:staging -o /tmp/serving_staging.tar
-
+      # Download and start the serving image validated in the previous stage
       - name: Start serving container
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME: ${{ github.repository }}
+          IMAGE_TAG: staging
+          MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
+          MLFLOW_EXPERIMENT_NAME: ${{ env.MLFLOW_EXPERIMENT_NAME }}
+          SERVING_PORT: 8080
         run: |
-          docker run -d \
-            --name serving-app-staging \
-            -p 8080:8080 \
-            -e MLFLOW_TRACKING_URI=${{ env.MLFLOW_TRACKING_URI }} \
-            -e MODEL_ALIAS=${{ github.sha }} \
-            ${{ env.REGISTRY }}/${{ github.repository }}/serving:staging && sleep 10
+          docker compose up -d --pull always serving
+
+          # Wait for FastAPI to be ready
+          sleep 10
 
       # ===================== Run tests against staging environment =====================
       # Here we are just running the same E2E tests, but in real systems we would run

@@ -15,9 +15,9 @@ services:
       context: .
       dockerfile: serving/Dockerfile
     container_name: serving
-    image: serving:latest
+    image: ${REGISTRY}/${IMAGE_NAME}/serving:${IMAGE_TAG}
     ports:
-      - "8080:8080"
+      - "${SERVING_PORT:-8080}:8080"
     environment:
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://localhost:5050}
       MLFLOW_EXPERIMENT_NAME: ${MLFLOW_EXPERIMENT_NAME:-sisdata}
@@ -27,11 +27,11 @@ services:
       context: .
       dockerfile: training/Dockerfile
     container_name: training
-    image: training:latest
+    image: ${REGISTRY}/${IMAGE_NAME}/training:${IMAGE_TAG}
     environment:
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://localhost:5050}
       MLFLOW_EXPERIMENT_NAME: ${MLFLOW_EXPERIMENT_NAME:-sisdata}
-      COMMIT_SHA: "local-dev"
+      COMMIT_SHA: ${COMMIT_SHA:-"local-dev"}
     volumes:
       # Persist training data
       - ./train-data:/app/train-data
