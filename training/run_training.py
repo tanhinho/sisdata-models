@@ -81,29 +81,35 @@ def main():
     print("MLflow tracking started.")
     print("Starting training runs...")
     for dataset_cls in DATASETS:
-        mlflow.start_run(run_name=f"Dataset: {dataset_cls.__name__}", nested=True)
-        print(f"Starting runs for dataset: {dataset_cls.__name__}")
+        print(f"Starting runs for dataset: {dataset_cls.NAME}")
         dataset = dataset_cls()
         for optim_cls in OPTIMIZERS:
-            mlflow.start_run(run_name=f"Optimizer: {optim_cls.__name__}", nested=True)
+            model_cls = optim_cls.MODEL
+
+            mlflow.start_run(run_name=model_cls.NAME, nested=True)
+            mlflow.set_tags({
+                "dataset": dataset_cls.NAME,
+                "model": model_cls.NAME,
+                "run_type": "parent",
+                "sha": COMMIT_SHA,
+            })
 
             optimizer = optim_cls(dataset=dataset, seed=SEED)
-            print(f"Running optimizer {optim_cls.__name__} for dataset {dataset_cls.__name__}...")
+            print(f"Running {model_cls.NAME} optimizer for {dataset_cls.NAME}...")
             study = optimizer.optimize()
-            print(f"Optimizer {optim_cls.__name__} completed for dataset {dataset_cls.__name__}.\n")
+            print(f"Optimizer completed for dataset {dataset_cls.NAME}.\n")
             print(f"Best parameters found: {study.best_params}")
             print(f"Best loss achieved: {study.best_value}\n")
-            model_cls = optim_cls.MODEL
-            print(f"Training model {model_cls.__name__} with best parameters...")
+            print(f"Training model {model_cls.NAME} with best parameters...")
             model = model_cls(dataset=dataset, is_optimizing=False, **study.best_params)
-            test_loss = model.fit_and_evaluate(run_name=f"optimized_{model_cls.__name__}")
-            print(f"Model {model_cls.__name__} trained. Test loss: {test_loss}\n")
+            test_loss = model.fit_and_evaluate(run_name=f"final_model")
+            print(f"Model {model_cls.NAME} trained. Test loss: {test_loss}\n")
 
+            # Log the child's best parameters and test loss to the parent run
             mlflow.log_params(study.best_params)
-            mlflow.log_metrics({"test_loss": test_loss})
+            mlflow.log_metrics({"loss": test_loss})
             mlflow.end_run()
-        print(f"Completed all models for dataset {dataset_cls.__name__}.\n")
-        mlflow.end_run()
+        print(f"Completed all models for dataset {dataset_cls.NAME}.\n")
 
 
 """     # At this point, the experiment has all old runs + today's runs.

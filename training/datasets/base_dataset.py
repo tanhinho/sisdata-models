@@ -6,16 +6,18 @@ from sklearn.preprocessing import StandardScaler
 
 class BaseDataset(ABC):
     """Abstract base class for datasets.
-    Child classes should only define the FILEPATH, FEATURE_COLS, and TARGET_COL class attributes.
+    Child classes should only define the FILEPATH, FEATURE_COLS, TARGET_COL and NAME class attributes.
 
     Attributes:
         FILEPATH (str): The path to the dataset CSV file.
         FEATURE_COLS (list[str]): The list of feature column names.
         TARGET_COL (str): The name of the target column.
+        NAME (str): A descriptive name for the dataset.
     """
     FILEPATH: str = ""
     FEATURE_COLS: list[str] = []
     TARGET_COL: str = ""
+    NAME: str = None
 
     def __init__(self):
         self.df_train, self.df_val, self.df_test = self._load_and_preprocess()

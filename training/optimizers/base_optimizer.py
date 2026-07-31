@@ -19,7 +19,7 @@ class BaseOptimizer(ABC):
     def __init__(
         self,
         dataset: BaseDataset,
-        n_trials: int = 1,
+        n_trials: int = 15,
         seed: Optional[int] = None,
     ):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

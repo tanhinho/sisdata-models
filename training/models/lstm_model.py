@@ -8,6 +8,8 @@ from .utils import create_sequences
 
 
 class LSTMModel(BaseModel):
+    NAME = "lstm"
+
     def __init__(
         self,
         dataset: BaseDataset,

@@ -17,3 +17,5 @@ class DatasetA(BaseDataset):
     ]
 
     TARGET_COL = "Fish_Weight(g)"
+
+    NAME = "dataset_a"

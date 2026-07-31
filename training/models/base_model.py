@@ -1,9 +1,12 @@
 from abc import ABC, abstractmethod
+import os
 import mlflow
 import torch
 import torch.nn as nn
 
 from datasets.base_dataset import BaseDataset
+
+COMMIT_SHA = os.getenv('COMMIT_SHA', 'local-dev')
 
 
 class BaseModel(nn.Module, ABC):
@@ -11,9 +14,11 @@ class BaseModel(nn.Module, ABC):
     Child classes should implement the `forward` and `_fit_and_evaluate_impl` methods.
 
     Attributes:
+        NAME (str): A descriptive name for the model.
         dataset (BaseDataset): The dataset object containing training, validation, and test data.
         is_optimizing (bool): Flag indicating if the model is being optimized (True) or trained normally (False).
     """
+    NAME = None  # Child classes should override this with a descriptive name.
 
     def __init__(
         self,
@@ -41,14 +46,22 @@ class BaseModel(nn.Module, ABC):
         Args:
             **kwargs: Additional arguments for training and evaluation.
         Returns:
-            float: The evaluation metric (e.g., validation loss).
+            float: The evaluation metric (e.g., loss).
         """
         with mlflow.start_run(run_name=run_name, nested=True):
+            run_type = "optuna_trial" if self.is_optimizing else "final_model"
+            mlflow.set_tags({
+                "dataset": self.dataset.NAME,
+                "model": self.NAME,
+                "run_type": run_type,
+                "sha": COMMIT_SHA,
+            })
+
             df_test = self.dataset.df_val if self.is_optimizing else self.dataset.df_test
 
             loss, params = self._fit_and_evaluate_impl(self.dataset.df_train, df_test)
             mlflow.log_params(params)
-            mlflow.log_metrics({"validation_loss": loss})
+            mlflow.log_metrics({"loss": loss})
             return loss
 
     @abstractmethod

@@ -16,7 +16,7 @@ class LSTMOptimizer(BaseOptimizer):
         dropout = trial.suggest_float("dropout", 0.0, 0.5)
         seq_length = trial.suggest_int("seq_length", 8, 64)
         lr = trial.suggest_float("lr", 1e-5, 1e-2, log=True)
-        epochs = trial.suggest_int("epochs", 1, 1)
+        epochs = trial.suggest_int("epochs", 10, 50)
         batch_size = trial.suggest_categorical("batch_size", [16, 32, 64, 128])
 
         # Create model instance
@@ -33,6 +33,6 @@ class LSTMOptimizer(BaseOptimizer):
         )
 
         # Train and evaluate
-        val_loss = model.fit_and_evaluate(run_name=f"trial_{trial.number}")
+        val_loss = model.fit_and_evaluate(run_name=f"optuna_trial_{trial.number}")
 
         return val_loss
