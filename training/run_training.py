@@ -88,9 +88,9 @@ def main():
             mlflow.start_run(run_name=f"Optimizer: {optimizer_cls.__name__}", nested=True)
 
             optimizer = optimizer_cls(dataset=dataset, seed=SEED)
-            print(f"Running optimizer {optimizer.__name__} for dataset {dataset.__name__}...")
+            print(f"Running optimizer {optimizer_cls.__name__} for dataset {dataset.__name__}...")
             result = optimizer.optimize(dataset=dataset, seed=SEED)
-            print(f"Optimizer {optimizer.__name__} completed for dataset {dataset.__name__}.\n")
+            print(f"Optimizer {optimizer_cls.__name__} completed for dataset {dataset.__name__}.\n")
             print(f"Best parameters found: {result['best_params']}")
             print(f"Best loss achieved: {result['best_loss']}\n")
             model_cls = optimizer_cls.MODEL
