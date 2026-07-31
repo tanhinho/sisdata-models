@@ -9,7 +9,7 @@ from optimizers import BaseOptimizer, LSTMOptimizer
 
 SEED = 42
 
-COMMIT_SHA = os.getenv('COMMIT_SHA')
+COMMIT_SHA = os.getenv('COMMIT_SHA', 'local-dev')
 MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI', 'http://localhost:5050')
 
 DATASETS: List[type[BaseDataset]] = [DatasetA]
