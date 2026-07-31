@@ -3,13 +3,15 @@ import torch.nn as nn
 import torch.optim as optim
 
 from datasets.base_dataset import BaseDataset
+from models.base_model import BaseModel
 from .utils import create_sequences
 
 
-class LSTMModel(nn.Module):
+class LSTMModel(BaseModel):
     def __init__(
         self,
         dataset: BaseDataset,
+        is_optimizing: bool = False,
         hidden_size: int = 64,
         num_layers: int = 2,
         dropout: float = 0.0,
@@ -18,7 +20,8 @@ class LSTMModel(nn.Module):
         epochs: int = 100,
         batch_size: int = 32,
     ):
-        self.dataset = dataset
+        super().__init__(dataset=dataset, is_optimizing=is_optimizing)
+
         self.seq_length = seq_length
         self.lr = lr
         self.epochs = epochs
@@ -26,8 +29,7 @@ class LSTMModel(nn.Module):
 
         input_size = len(self.dataset.FEATURE_COLS)
         output_size = 1
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        super().__init__()
+
         self.lstm = nn.LSTM(
             input_size=input_size,
             hidden_size=hidden_size,

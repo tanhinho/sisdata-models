@@ -11,45 +11,28 @@ class LSTMOptimizer(BaseOptimizer):
 
     def _objective_impl(self, trial: optuna.Trial) -> Tuple[float, Dict[str, Any]]:
         # Sample hyperparameters
-        seq_length = trial.suggest_int("sequence_length", 8, 64)
         hidden_size = trial.suggest_int("hidden_size", 32, 256, log=True)
         num_layers = trial.suggest_int("num_layers", 1, 3)
         dropout = trial.suggest_float("dropout", 0.0, 0.5)
-        learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
+        seq_length = trial.suggest_int("seq_length", 8, 64)
+        lr = trial.suggest_float("lr", 1e-5, 1e-2, log=True)
+        epochs = trial.suggest_int("epochs", 1, 1)
         batch_size = trial.suggest_categorical("batch_size", [16, 32, 64, 128])
-        epochs = trial.suggest_int("epochs", 10, 50)
 
         # Create model instance
         model = self.MODEL(
             dataset=self.dataset,
+            is_optimizing=True,
             hidden_size=hidden_size,
             num_layers=num_layers,
             dropout=dropout,
             seq_length=seq_length,
-            lr=learning_rate,
+            lr=lr,
             epochs=epochs,
             batch_size=batch_size,
         )
 
         # Train and evaluate
-        val_loss = model.fit_and_evaluate(
-            run_name=f"trial_{trial.number}",
-            df_train=self.dataset.df_train,
-            df_test=self.dataset.df_val,
-            seq_length=seq_length,
-            lr=learning_rate,
-            epochs=epochs,
-            batch_size=batch_size,
-        )
+        val_loss = model.fit_and_evaluate(run_name=f"trial_{trial.number}")
 
-        params = {
-            "sequence_length": seq_length,
-            "hidden_size": hidden_size,
-            "num_layers": num_layers,
-            "dropout": dropout,
-            "learning_rate": learning_rate,
-            "batch_size": batch_size,
-            "epochs": epochs
-        }
-
-        return val_loss, params
+        return val_loss

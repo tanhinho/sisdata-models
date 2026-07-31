@@ -80,28 +80,29 @@ def main():
     mlflow.set_experiment("sisdata")
     print("MLflow tracking started.")
     print("Starting training runs...")
-    for dataset in DATASETS:
-        mlflow.start_run(run_name=f"Dataset: {dataset.__name__}", nested=True)
-        print(f"Starting runs for dataset: {dataset.__name__}")
-        for optimizer_cls in OPTIMIZERS:
-            mlflow.start_run(run_name=f"Optimizer: {optimizer_cls.__name__}", nested=True)
+    for dataset_cls in DATASETS:
+        mlflow.start_run(run_name=f"Dataset: {dataset_cls.__name__}", nested=True)
+        print(f"Starting runs for dataset: {dataset_cls.__name__}")
+        dataset = dataset_cls()
+        for optim_cls in OPTIMIZERS:
+            mlflow.start_run(run_name=f"Optimizer: {optim_cls.__name__}", nested=True)
 
-            optimizer = optimizer_cls(dataset=dataset, seed=SEED)
-            print(f"Running optimizer {optimizer_cls.__name__} for dataset {dataset.__name__}...")
-            result = optimizer.optimize(dataset=dataset, seed=SEED)
-            print(f"Optimizer {optimizer_cls.__name__} completed for dataset {dataset.__name__}.\n")
-            print(f"Best parameters found: {result['best_params']}")
-            print(f"Best loss achieved: {result['best_loss']}\n")
-            model_cls = optimizer_cls.MODEL
+            optimizer = optim_cls(dataset=dataset, seed=SEED)
+            print(f"Running optimizer {optim_cls.__name__} for dataset {dataset_cls.__name__}...")
+            study = optimizer.optimize()
+            print(f"Optimizer {optim_cls.__name__} completed for dataset {dataset_cls.__name__}.\n")
+            print(f"Best parameters found: {study.best_params}")
+            print(f"Best loss achieved: {study.best_value}\n")
+            model_cls = optim_cls.MODEL
             print(f"Training model {model_cls.__name__} with best parameters...")
-            model = model_cls(dataset=dataset, is_optimizing=False, **result['best_params'])
+            model = model_cls(dataset=dataset, is_optimizing=False, **study.best_params)
             test_loss = model.fit_and_evaluate(run_name=f"optimized_{model_cls.__name__}")
             print(f"Model {model_cls.__name__} trained. Test loss: {test_loss}\n")
 
-            mlflow.log_params(result['best_params'])
+            mlflow.log_params(study.best_params)
             mlflow.log_metrics({"test_loss": test_loss})
             mlflow.end_run()
-        print(f"Completed all models for dataset {dataset.__name__}.\n")
+        print(f"Completed all models for dataset {dataset_cls.__name__}.\n")
         mlflow.end_run()
 
 

@@ -19,7 +19,7 @@ class BaseOptimizer(ABC):
     def __init__(
         self,
         dataset: BaseDataset,
-        n_trials: int = 15,
+        n_trials: int = 1,
         seed: Optional[int] = None,
     ):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -37,21 +37,29 @@ class BaseOptimizer(ABC):
         Returns:
             float: The validation loss (MSE) to minimize.
         """
+        val_loss = self._objective_impl(trial)
+        return val_loss
+
+    def _objective_impl(self, trial: optuna.Trial) -> Any:
+        """Implementation of the objective function.
+        Child classes should implement this method with the specific logic for training and evaluating the model.
+
+        Args:
+            trial (optuna.Trial): The trial object for hyperparameter suggestions.
+
+        Returns:
+            Any: The result of the objective function.
+        """
         pass
 
-    def optimize(self) -> Dict[str, Any]:
+    def optimize(self) -> optuna.Study:
         """Run hyperparameter search minimizing validation loss.
 
         Returns:
-            Dict[str, Any]: Dictionary containing best parameters, best loss and study.
-            The keys are `best_params`, `best_loss`, and `study`.
+            Study: The Optuna study object containing the optimization results.
         """
         sampler = optuna.samplers.TPESampler(seed=self.seed) if self.seed else None
         self.study = optuna.create_study(direction="minimize", sampler=sampler)
         self.study.optimize(self._objective, n_trials=self.n_trials, show_progress_bar=True)
 
-        return {
-            "best_params": self.study.best_params,
-            "best_loss": self.study.best_value,
-            "study": self.study,
-        }
+        return self.study
