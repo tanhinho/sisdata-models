@@ -3,7 +3,6 @@ from typing import List
 import mlflow
 import os
 from datasets import DatasetA
-from models import BaseModel, LSTMModel
 from datasets import BaseDataset
 from optimizers import BaseOptimizer, LSTMOptimizer
 
