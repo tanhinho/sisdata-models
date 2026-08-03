@@ -10,6 +10,8 @@ SEED = 42
 
 COMMIT_SHA = os.getenv('COMMIT_SHA', 'local-dev')
 MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI', 'http://localhost:5050')
+MLFLOW_EXPERIMENT_NAME = os.getenv('MLFLOW_EXPERIMENT_NAME', 'local-experiment')
+REGISTERED_MODEL_NAME = "fish-growth"
 
 DATASETS: List[type[BaseDataset]] = [DatasetA]
 OPTIMIZERS: List[type[BaseOptimizer]] = [LSTMOptimizer]
@@ -18,67 +20,7 @@ if not COMMIT_SHA:
     raise EnvironmentError("Missing required env var: COMMIT_SHA")
 
 
-def get_best_existing_model():
-    """ Find the best existing model in MLflow based on MSE metric.
-
-    Raises:
-        RuntimeError: If the experiment does not exist, if no runs are found,
-        or if a model artifact path cannot be determined for the best run.
-
-    Returns:
-        tuple[str, str]: A pair ``(run_id, artifact_name)`` where ``run_id``
-        is the MLflow run identifier and ``artifact_name`` is the name of the logged model artifact.
-    """
-    client = mlflow.tracking.MlflowClient()
-
-    # Get the experiment
-    experiment_name = os.getenv('MLFLOW_EXPERIMENT_NAME', 'default')
-    experiment = client.get_experiment_by_name(experiment_name)
-
-    if not experiment:
-        raise RuntimeError(f"No experiment found with name: {experiment_name}")
-
-    # Search for all runs in the experiment, ordered by MSE
-    runs = client.search_runs(
-        experiment_ids=[experiment.experiment_id],
-        filter_string="",
-        order_by=["metrics.mse ASC"],
-        max_results=1
-    )
-
-    if not runs:
-        raise RuntimeError("No existing runs found. You must train models first.")
-
-    best_run = runs[0]
-    best_mse = best_run.data.metrics.get('mse')
-
-    print(f"Best existing model found:")
-    print(f"  Run ID: {best_run.info.run_id}")
-    print(f"  MSE: {best_mse}")
-    print(f"  Tags: {best_run.data.tags}")
-
-    # Check which artifact was logged
-    artifacts = client.list_artifacts(best_run.info.run_id)
-    artifact_name = None
-
-    for artifact in artifacts:
-        # TODO: Add the actual artifact paths you expect for your models here
-        if artifact.path in []:
-            # The artifact path is also the model's name (e.g. "linear_regression", "random_forest", etc.)
-            artifact_name = artifact.path
-            break
-
-    if not artifact_name:
-        raise RuntimeError("Could not determine model artifact name from best run")
-
-    return best_run.info.run_id, artifact_name
-
-
-def main():
-    print("Starting MLflow tracking...")
-    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-    mlflow.set_experiment("sisdata")
-    print("MLflow tracking started.")
+def run_training():
     print("Starting training runs...")
     for dataset_cls in DATASETS:
         print(f"Starting runs for dataset: {dataset_cls.NAME}")
@@ -86,7 +28,7 @@ def main():
         for optim_cls in OPTIMIZERS:
             model_cls = optim_cls.MODEL
 
-            mlflow.start_run(run_name=model_cls.NAME, nested=True)
+            mlflow.start_run(run_name=model_cls.NAME)
             mlflow.set_tags({
                 "dataset": dataset_cls.NAME,
                 "model": model_cls.NAME,
@@ -108,25 +50,131 @@ def main():
             # Log the child's best parameters and test loss to the parent run
             mlflow.log_params(study.best_params)
             mlflow.log_metrics({"loss": test_loss})
+            mlflow.pytorch.log_model(model, name="model")
+
+            # Save the parent run ID before leaving the run.
+            run_id = mlflow.active_run().info.run_id
+
+            # Register this model as a new version of the same registered model.
+            model_uri = f"runs:/{run_id}/model"
+            model_version = mlflow.register_model(model_uri=model_uri, name=REGISTERED_MODEL_NAME)
+            mlflow.set_tag("model_version", model_version.version)
+
+            client = mlflow.MlflowClient()
+            client.set_model_version_tag(
+                name=REGISTERED_MODEL_NAME,
+                version=model_version.version,
+                key="sha",
+                value=COMMIT_SHA
+            )
+            client.set_model_version_tag(
+                name=REGISTERED_MODEL_NAME,
+                version=model_version.version,
+                key="dataset",
+                value=dataset_cls.NAME
+            )
+            client.set_model_version_tag(
+                name=REGISTERED_MODEL_NAME,
+                version=model_version.version,
+                key="architecture",
+                value=model_cls.NAME
+            )
+
+            print(
+                f"Registered {model_cls.NAME} as "
+                f"{REGISTERED_MODEL_NAME} "
+                f"version {model_version.version}"
+            )
+
             mlflow.end_run()
         print(f"Completed all models for dataset {dataset_cls.NAME}.\n")
 
 
-"""     # At this point, the experiment has all old runs + today's runs.
-    # Use ALL runs to pick the true best model.
-    best_model, artifact_name = get_best_existing_model()
+def update_best_model():
+    client = mlflow.MlflowClient()
+    experiment = client.get_experiment_by_name(MLFLOW_EXPERIMENT_NAME)
 
-    best_model_uri = f"runs:/{best_model.run_id}/{artifact_name}"
-    model = mlflow.register_model(best_model_uri, "best_model")
+    if experiment is None:
+        raise RuntimeError(f"Experiment '{MLFLOW_EXPERIMENT_NAME}' not found")
 
+    experiment_id = experiment.experiment_id
+
+    # Get all parent model runs created by this commit
+    current_runs = client.search_runs(
+        experiment_ids=[experiment_id],
+        filter_string=(
+            f"tags.sha = '{COMMIT_SHA}' "
+            "AND tags.run_type = 'parent'"
+        ),
+        order_by=["metrics.loss ASC"],
+    )
+
+    if not current_runs:
+        raise RuntimeError(
+            f"No parent runs found for commit {COMMIT_SHA}"
+        )
+
+    # Best model from the current commit
+    current_best = current_runs[0]
+    current_best_loss = current_best.data.metrics["loss"]
+    current_best_version = current_best.data.tags.get("model_version")
+
+    print(
+        f"Best model for {COMMIT_SHA}: "
+        f"{current_best.info.run_id} "
+        f"(version={current_best_version}, loss={current_best_loss})"
+    )
+
+    # Find the model currently marked as best
     try:
-        client = mlflow.tracking.MlflowClient()
-        client.set_registered_model_alias(name=model.name, alias=COMMIT_SHA, version=model.version)
-        print(f"Set alias '{COMMIT_SHA}' for {model.name} version {model.version}")
-    except Exception as e:
-        print(f"Could not set model alias: {e}")
-        raise e
- """
+        previous_best = client.get_model_version_by_alias(name=REGISTERED_MODEL_NAME, alias="best")
+
+        previous_best_run = client.get_run(previous_best.run_id)
+        previous_best_loss = previous_best_run.data.metrics["loss"]
+    except mlflow.exceptions.RestException:
+        previous_best = None
+
+    # No previous best, best from this commit automatically becomes best
+    if previous_best is None:
+        client.set_registered_model_alias(
+            name=REGISTERED_MODEL_NAME,
+            alias="best",
+            version=current_best_version
+        )
+        print(f"No previous best model. Version {current_best_version} is now the best.")
+        return
+
+    print(
+        f"Previous best: {previous_best_run.info.run_id} "
+        f"(version={previous_best.version}, loss={previous_best_loss})"
+    )
+
+    # Only replace the best model if the new one is better
+    if current_best_loss < previous_best_loss:
+        # Mark new model as best
+        client.set_registered_model_alias(
+            name=REGISTERED_MODEL_NAME,
+            alias="best",
+            version=current_best_version
+        )
+
+        print(
+            f"New best model! "
+            f"{current_best_loss} < {previous_best_loss}"
+        )
+
+    else:
+        print("Current models did not beat the existing best.")
+
+
+def main():
+    print("Starting MLflow tracking...")
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
+    print("MLflow tracking started.")
+    run_training()
+    update_best_model()
+
 
 if __name__ == "__main__":
     main()
