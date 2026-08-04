@@ -13,7 +13,6 @@ class DatasetA(BaseDataset):
         "Ammonia(g/ml)",
         "Nitrate(g/ml)",
         "Population",
-        "Fish_Length(cm)",
     ]
 
     TARGET_COL = "Fish_Weight(g)"
