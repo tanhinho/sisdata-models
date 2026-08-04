@@ -1,5 +1,6 @@
 from typing import List
 
+import joblib
 import mlflow
 import os
 from datasets import DatasetA
@@ -51,6 +52,10 @@ def run_training():
             mlflow.log_params(study.best_params)
             mlflow.log_metrics({"loss": test_loss})
             mlflow.pytorch.log_model(model, name="model")
+
+            # Save the scaler used for preprocessing as an artifact
+            joblib.dump(dataset.scaler, "scaler.pkl")
+            mlflow.log_artifact("scaler.pkl", artifact_path="preprocessing")
 
             # Save the parent run ID before leaving the run.
             run_id = mlflow.active_run().info.run_id

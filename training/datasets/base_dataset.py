@@ -20,7 +20,7 @@ class BaseDataset(ABC):
     NAME: str = None
 
     def __init__(self):
-        self.df_train, self.df_val, self.df_test = self._load_and_preprocess()
+        self.df_train, self.df_val, self.df_test, self.scaler = self._load_and_preprocess()
 
     def _load_and_preprocess(
         self,
@@ -62,4 +62,4 @@ class BaseDataset(ABC):
         df_val[self.FEATURE_COLS] = scaler.transform(df_val[self.FEATURE_COLS])
         df_test[self.FEATURE_COLS] = scaler.transform(df_test[self.FEATURE_COLS])
 
-        return df_train, df_val, df_test
+        return df_train, df_val, df_test, scaler
