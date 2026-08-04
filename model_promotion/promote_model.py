@@ -1,41 +1,39 @@
 import os
 from mlflow.tracking import MlflowClient
 
-from_alias = os.getenv('FROM_ALIAS')
-if not from_alias:
+FROM_ALIAS = os.getenv('FROM_ALIAS')
+if not FROM_ALIAS:
     raise EnvironmentError("Missing required env var: FROM_ALIAS")
 
-to_alias = os.getenv('TO_ALIAS')
-if not to_alias:
+TO_ALIAS = os.getenv('TO_ALIAS')
+if not TO_ALIAS:
     raise EnvironmentError("Missing required env var: TO_ALIAS")
 
-model_name = os.getenv('MLFLOW_MODEL_NAME')
-if not model_name:
+MLFLOW_MODEL_NAME = os.getenv('MLFLOW_MODEL_NAME')
+if not MLFLOW_MODEL_NAME:
     raise EnvironmentError("Missing required env var: MLFLOW_MODEL_NAME")
+
+MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI', 'http://localhost:5050')
 
 
 def promote_model():
-    mlflow_uri = os.getenv("MLFLOW_TRACKING_URI")
-    if not mlflow_uri:
-        raise RuntimeError("Missing env var MLFLOW_TRACKING_URI")
-
-    print(f"Connecting to MLflow at {mlflow_uri}")
-    client = MlflowClient(tracking_uri=mlflow_uri)
+    print(f"Connecting to MLflow at {MLFLOW_TRACKING_URI}")
+    client = MlflowClient(tracking_uri=MLFLOW_TRACKING_URI)
 
     # Get model versions under the staging alias
-    versions = client.get_model_version_by_alias(model_name, from_alias)
+    versions = client.get_model_version_by_alias(MLFLOW_MODEL_NAME, FROM_ALIAS)
     if not versions:
-        raise RuntimeError(f"No model tagged '{from_alias}' found for {model_name}")
+        raise RuntimeError(f"No model tagged '{FROM_ALIAS}' found for {MLFLOW_MODEL_NAME}")
 
     version = versions.version
-    print(f"Found {model_name} version {version} under alias '{from_alias}'")
+    print(f"Found {MLFLOW_MODEL_NAME} version {version} under alias '{FROM_ALIAS}'")
 
     # Promote
     client.set_registered_model_alias(
-        name=model_name, alias=to_alias, version=version
+        name=MLFLOW_MODEL_NAME, alias=TO_ALIAS, version=version
     )
 
-    print(f"✅ Promoted {model_name} version {version} to '{to_alias}'")
+    print(f"✅ Promoted {MLFLOW_MODEL_NAME} version {version} to '{TO_ALIAS}'")
 
 
 if __name__ == "__main__":

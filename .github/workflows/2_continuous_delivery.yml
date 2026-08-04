@@ -13,6 +13,7 @@ env:
   REGISTRY: ${{ vars.REGISTRY }}
   MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
   MLFLOW_EXPERIMENT_NAME: ${{ vars.MLFLOW_EXPERIMENT_NAME }}
+  MLFLOW_MODEL_NAME: ${{ vars.MLFLOW_MODEL_NAME }}
 
 jobs:
   train-model:
@@ -89,8 +90,8 @@ jobs:
       - name: Promote model to staging
         env:
           MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
-          MLFLOW_EXPERIMENT_NAME: ${{ env.MLFLOW_EXPERIMENT_NAME }}
-          FROM_ALIAS: ${{ github.sha }}
+          MLFLOW_MODEL_NAME: ${{ env.MLFLOW_MODEL_NAME }}
+          FROM_ALIAS: best
           TO_ALIAS: staging
         run: |
           set -xe
