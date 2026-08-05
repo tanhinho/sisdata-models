@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 import optuna
 import torch
 
