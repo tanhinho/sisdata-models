@@ -2,10 +2,12 @@ from typing import List
 
 import joblib
 import mlflow
+import tempfile
+import torch
 import os
 from datasets import DatasetA
 from datasets import BaseDataset
-from optimizers import BaseOptimizer, LSTMOptimizer
+from optimizers import BaseOptimizer, LSTMOptimizer, TCNOptimizer, RandomForestOptimizer, TransformerOptimizer
 
 SEED = 42
 
@@ -15,10 +17,22 @@ MLFLOW_EXPERIMENT_NAME = os.getenv('MLFLOW_EXPERIMENT_NAME', 'local-experiment')
 REGISTERED_MODEL_NAME = "fish-growth"
 
 DATASETS: List[type[BaseDataset]] = [DatasetA]
-OPTIMIZERS: List[type[BaseOptimizer]] = [LSTMOptimizer]
+OPTIMIZERS: List[type[BaseOptimizer]] = [
+    LSTMOptimizer,
+    TCNOptimizer,
+    RandomForestOptimizer,
+    TransformerOptimizer,
+]
 
 if not COMMIT_SHA:
     raise EnvironmentError("Missing required env var: COMMIT_SHA")
+
+
+class ModelArtifactWrapper(mlflow.pyfunc.PythonModel):
+    def load_context(self, context):
+        # Artifact paths are resolved automatically by MLflow
+        self.scaler = joblib.load(context.artifacts["scaler"])
+        self.model_weights_path = context.artifacts["model_weights"]
 
 
 def run_training():
@@ -51,11 +65,27 @@ def run_training():
             # Log the child's best parameters and test loss to the parent run
             mlflow.log_params(study.best_params)
             mlflow.log_metrics({"loss": test_loss})
-            mlflow.pytorch.log_model(model, name="model")
 
-            # Save the scaler used for preprocessing as an artifact
-            joblib.dump(dataset.scaler, "scaler.pkl")
-            mlflow.log_artifact("scaler.pkl", artifact_path="preprocessing")
+            with tempfile.TemporaryDirectory() as tmpdir:
+
+                # Save the model to a temporary directory
+                model_path = os.path.join(tmpdir, "model.pt")
+                scaler_path = os.path.join(tmpdir, "scaler.pkl")
+
+                # Get the underlying PyTorch model
+                torch.save(model.state_dict(), model_path)
+                joblib.dump(model.dataset.scaler, scaler_path)
+
+                artifacts = {
+                    "model": model_path,
+                    "scaler": scaler_path,
+                }
+
+                mlflow.pyfunc.log_model(
+                    artifact_path="model",
+                    python_model=ModelArtifactWrapper(),
+                    artifacts=artifacts
+                )
 
             # Save the parent run ID before leaving the run.
             run_id = mlflow.active_run().info.run_id
