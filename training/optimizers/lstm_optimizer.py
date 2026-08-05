@@ -14,7 +14,7 @@ class LSTMOptimizer(BaseOptimizer):
         hidden_size = trial.suggest_int("hidden_size", 32, 256, log=True)
         num_layers = trial.suggest_int("num_layers", 1, 5)
         dropout = trial.suggest_float("dropout", 0.0, 0.5)
-        seq_length = trial.suggest_int("seq_length", 5, 10)
+        seq_length = trial.suggest_int("seq_length", 5, 15)
         lr = trial.suggest_float("lr", 1e-5, 1e-2, log=True)
         epochs = trial.suggest_int("epochs", 10, 100)
         batch_size = trial.suggest_categorical("batch_size", [16, 32, 64, 128])
