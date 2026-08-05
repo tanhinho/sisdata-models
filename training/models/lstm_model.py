@@ -62,18 +62,13 @@ class LSTMModel(BaseModel):
             self.FORECAST_HORIZON,
             self.device,
         )
-        print(f"Train rows: {len(df_train)}")
-        print(f"X shape: {X_train.shape}")
-        print(f"y shape: {y_train.shape}")
+
         X_test, y_test = self.dataset.create_sequences(
             df_test,
             self.seq_length,
             self.FORECAST_HORIZON,
             self.device,
         )
-        print(f"Test rows: {len(df_test)}")
-        print(f"X shape: {X_test.shape}")
-        print(f"y shape: {y_test.shape}")
 
         dataset = torch.utils.data.TensorDataset(X_train, y_train)
         loader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
