@@ -19,6 +19,7 @@ class BaseModel(nn.Module, ABC):
         is_optimizing (bool): Flag indicating if the model is being optimized (True) or trained normally (False).
     """
     NAME = None  # Child classes should override this with a descriptive name.
+    FORECAST_HORIZON = 3  # Default forecast horizon for time-series predictions.
 
     def __init__(
         self,

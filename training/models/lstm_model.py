@@ -4,7 +4,6 @@ import torch.optim as optim
 
 from datasets.base_dataset import BaseDataset
 from models.base_model import BaseModel
-from .utils import create_sequences
 
 
 class LSTMModel(BaseModel):
@@ -30,7 +29,6 @@ class LSTMModel(BaseModel):
         self.batch_size = batch_size
 
         input_size = len(self.dataset.FEATURE_COLS)
-        output_size = 1
 
         self.lstm = nn.LSTM(
             input_size=input_size,
@@ -39,7 +37,7 @@ class LSTMModel(BaseModel):
             batch_first=True,
             dropout=dropout if num_layers > 1 else 0.0,
         )
-        self.fc = nn.Linear(hidden_size, output_size)
+        self.fc = nn.Linear(hidden_size, self.FORECAST_HORIZON)
         self.to(self.device)
 
     def forward(self, x, h0=None, c0=None):
@@ -58,20 +56,24 @@ class LSTMModel(BaseModel):
         optimizer = optim.Adam(self.parameters(), lr=self.lr)
 
         # Basic mini-batch training loop
-        X_train, y_train = create_sequences(
+        X_train, y_train = self.dataset.create_sequences(
             df_train,
             self.seq_length,
-            self.dataset.FEATURE_COLS,
-            self.dataset.TARGET_COL,
+            self.FORECAST_HORIZON,
             self.device,
         )
-        X_test, y_test = create_sequences(
+        print(f"Train rows: {len(df_train)}")
+        print(f"X shape: {X_train.shape}")
+        print(f"y shape: {y_train.shape}")
+        X_test, y_test = self.dataset.create_sequences(
             df_test,
             self.seq_length,
-            self.dataset.FEATURE_COLS,
-            self.dataset.TARGET_COL,
+            self.FORECAST_HORIZON,
             self.device,
         )
+        print(f"Test rows: {len(df_test)}")
+        print(f"X shape: {X_test.shape}")
+        print(f"y shape: {y_test.shape}")
 
         dataset = torch.utils.data.TensorDataset(X_train, y_train)
         loader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
