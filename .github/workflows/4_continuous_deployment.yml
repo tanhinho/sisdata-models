@@ -45,6 +45,5 @@ jobs:
           SERVING_IMAGE: ${{ env.REGISTRY }}/${{ github.repository }}/serving:production
           SERVING_PORT: 9001
           MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
-          MLFLOW_MODEL_NAME: ${{ env.MLFLOW_MODEL_NAME }}
         run: |
           docker compose up -d --pull always --force-recreate serving
