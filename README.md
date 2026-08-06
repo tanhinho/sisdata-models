@@ -23,19 +23,43 @@ This repository contains the machine learning models and serving code used by th
 
 ## Local development
 
-To bring up MLflow, the serving API and model container together:
+First, MLflow needs to be running. You can start it with:
 
 ```bash
-docker compose up --build
+docker compose up mlflow
 ```
 
-This will build and start:
+MLFlow will be available at <http://localhost:5050>.
 
-- `mlflow` on port `5050`.
-- `serving` on port `8080`.
-- `models` as a batch container using MLflow for tracking.
+Next, a model needs to be trained and registered in MLflow. First, set the environment variables for the MLflow tracking server, experiment name, and the training image name:
 
-You can then call the serving API at <http://127.0.0.1:8080>.
+```bash
+export MLFLOW_TRACKING_URI=http://localhost:5050
+export MLFLOW_EXPERIMENT_NAME=MyExperiment
+export TRAINING_IMAGE=myregistry/sisdata-models/training:latest
+```
+
+Then, you can run the training container to train and register the model in MLflow. Make sure you have the data available in the `train-data` folder, as it will be mounted into the container. You can run the training container with:
+
+```bash
+docker compose run --rm training
+```
+
+Finally, you can start the serving API. You must set the environment variables for the MLflow tracking server, experiment name, and the serving image name:
+
+```bash
+export MLFLOW_TRACKING_URI=http://localhost:5050
+export MLFLOW_EXPERIMENT_NAME=MyExperiment
+export SERVING_IMAGE=myregistry/sisdata-models/serving:latest
+```
+
+Then, you can start the serving container with:
+
+```bash
+docker compose up serving
+```
+
+You can then call the serving API at <http://localhost:8080>.
 
 ## CI/CD overview
 
@@ -46,4 +70,4 @@ The repository defines four main GitHub Actions workflows:
 - `3_continuous_staging.yml` – deploys the `serving:staging` image to a staging VM, runs staging E2E tests, and promotes the model alias from `staging` to `production` in MLflow.
 - `4_continuous_deployment.yml` – deploys the `serving:production` image to the production VM.
 
-Together, these workflows continuously build, validate, stage, and deploy the AI models that power the SISdATA application.
+Together, these workflows continuously build, validate, stage, and deploy the AI model that power the SISdATA application.
