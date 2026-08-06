@@ -35,9 +35,7 @@ jobs:
       # Download and run the training image built in the previous stage
       - name: Train models
         env:
-          REGISTRY: ${{ env.REGISTRY }}
-          IMAGE_NAME: ${{ github.repository }}
-          IMAGE_TAG: ${{ github.sha }}
+          TRAINING_IMAGE: ${{ env.REGISTRY }}/${{ github.repository }}/training:${{ github.sha }}
           MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
           MLFLOW_EXPERIMENT_NAME: ${{ env.MLFLOW_EXPERIMENT_NAME }}
           COMMIT_SHA: ${{ github.sha }}
@@ -47,9 +45,7 @@ jobs:
       # Start the serving container to validate the trained model
       - name: Start serving container
         env:
-          REGISTRY: ${{ env.REGISTRY }}
-          IMAGE_NAME: ${{ github.repository }}
-          IMAGE_TAG: ${{ github.sha }}
+          SERVING_IMAGE: ${{ env.REGISTRY }}/${{ github.repository }}/serving:${{ github.sha }}
           MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
           MLFLOW_EXPERIMENT_NAME: ${{ env.MLFLOW_EXPERIMENT_NAME }}
           SERVING_PORT: 8080
