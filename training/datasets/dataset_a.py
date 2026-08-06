@@ -3,7 +3,7 @@ from datasets.base_dataset import BaseDataset
 
 class DatasetA(BaseDataset):
     """Class to handle loading and preprocessing of Dataset A."""
-    FILEPATH = "train-data/dataset_a.csv"
+    FILEPATH = "app/train-data/dataset_a.csv"
 
     FEATURE_COLS = [
         "Temperature(C)",
