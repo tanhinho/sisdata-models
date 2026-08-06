@@ -42,7 +42,7 @@ jobs:
           MLFLOW_EXPERIMENT_NAME: ${{ env.MLFLOW_EXPERIMENT_NAME }}
           COMMIT_SHA: ${{ github.sha }}
         run: |
-          docker compose run --pull always --rm training
+          docker compose run --pull always training
 
       # Start the serving container to validate the trained model
       - name: Start serving container
