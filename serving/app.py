@@ -6,7 +6,7 @@ import joblib
 import mlflow
 from fastapi import FastAPI
 
-from .app import PredictionRequest, PredictionResponse
+from .schemas import PredictionRequest, PredictionResponse
 
 REGISTERED_MODEL_NAME = "fish-growth"
 MODEL_ALIAS = os.getenv("MODEL_ALIAS", "best")
