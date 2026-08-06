@@ -34,7 +34,7 @@ services:
       COMMIT_SHA: ${COMMIT_SHA:-"local-dev"}
     volumes:
       # Persist training data
-      - ./train-data:/app/train-data
+      - ./data:/app/data
 
 volumes:
   mlflow-data:
