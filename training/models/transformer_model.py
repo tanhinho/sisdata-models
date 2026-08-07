@@ -62,7 +62,7 @@ class TransformerModel(BaseModel):
             num_decoder_layers=num_layers,
             dim_feedforward=dim_feedforward,
             dropout=dropout,
-            batch_first=True,
+            batch_first=False,
         )
 
         # map decoder outputs (per time-step) to a single scalar prediction
