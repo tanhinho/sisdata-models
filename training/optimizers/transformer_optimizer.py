@@ -22,15 +22,13 @@ class TransformerOptimizer(BaseOptimizer):
         epochs = trial.suggest_int("epochs", 10, 100)
         batch_size = trial.suggest_categorical("batch_size", [16, 32, 64, 128])
 
-        dim_feedforward = d_model * ff_multiplier
-
         model = self.MODEL(
             dataset=self.dataset,
             is_optimizing=True,
             d_model=d_model,
             nhead=nhead,
             num_layers=num_layers,
-            dim_feedforward=dim_feedforward,
+            ff_multiplier=ff_multiplier,
             dropout=dropout,
             seq_length=seq_length,
             lr=lr,

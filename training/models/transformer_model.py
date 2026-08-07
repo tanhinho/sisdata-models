@@ -35,7 +35,7 @@ class TransformerModel(BaseModel):
         d_model: int = 64,
         nhead: int = 4,
         num_layers: int = 2,
-        dim_feedforward: int = 128,
+        ff_multiplier: int = 4,
         dropout: float = 0.1,
         seq_length: int = 32,
         lr: float = 1e-3,
@@ -60,7 +60,7 @@ class TransformerModel(BaseModel):
             nhead=nhead,
             num_encoder_layers=num_layers,
             num_decoder_layers=num_layers,
-            dim_feedforward=dim_feedforward,
+            dim_feedforward=ff_multiplier * d_model,
             dropout=dropout,
             batch_first=False,
         )
