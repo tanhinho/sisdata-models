@@ -19,9 +19,11 @@ class BaseOptimizer(ABC):
     def __init__(
         self,
         dataset: BaseDataset,
+        forecast_horizon: int = 3,
         n_trials: int = 30,
         seed: Optional[int] = None,
     ):
+        self.forecast_horizon = forecast_horizon
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.dataset = dataset
         self.n_trials = n_trials

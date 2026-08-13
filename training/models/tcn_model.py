@@ -81,8 +81,9 @@ class TCNModel(BaseModel):
         lr: float = 1e-3,
         epochs: int = 50,
         batch_size: int = 32,
+        forecast_horizon: int = 3,
     ):
-        super().__init__(dataset=dataset, is_optimizing=is_optimizing)
+        super().__init__(dataset=dataset, is_optimizing=is_optimizing, forecast_horizon=forecast_horizon)
 
         self.seq_length = seq_length
         self.lr = lr
@@ -94,7 +95,7 @@ class TCNModel(BaseModel):
 
         self.tcn = TemporalConvNet(num_inputs, num_channels,
                                    kernel_size=kernel_size, dropout=dropout)
-        self.fc = nn.Linear(hidden_size, self.FORECAST_HORIZON)
+        self.fc = nn.Linear(hidden_size, self.forecast_horizon)
         self.to(self.device)
 
     def forward(self, x, *_):
@@ -111,9 +112,11 @@ class TCNModel(BaseModel):
         optimizer = optim.Adam(self.parameters(), lr=self.lr)
 
         X_train, y_train = self.dataset.create_sequences(
-            df_train, self.seq_length, self.FORECAST_HORIZON, self.device)
+            df_train, self.seq_length, self.forecast_horizon, self.device
+        )
         X_test, y_test = self.dataset.create_sequences(
-            df_test, self.seq_length, self.FORECAST_HORIZON, self.device)
+            df_test, self.seq_length, self.forecast_horizon, self.device
+        )
 
         dataset = torch.utils.data.TensorDataset(X_train, y_train)
         loader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, shuffle=True)

@@ -17,6 +17,7 @@ class RandomForestOptimizer(BaseOptimizer):
 
         model = self.MODEL(
             dataset=self.dataset,
+            forecast_horizon=self.forecast_horizon,
             is_optimizing=True,
             n_estimators=n_estimators,
             max_depth=max_depth,

@@ -24,6 +24,7 @@ class TransformerOptimizer(BaseOptimizer):
 
         model = self.MODEL(
             dataset=self.dataset,
+            forecast_horizon=self.forecast_horizon,
             is_optimizing=True,
             d_model=d_model,
             nhead=nhead,

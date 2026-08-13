@@ -24,6 +24,8 @@ OPTIMIZERS: List[type[BaseOptimizer]] = [
     TransformerOptimizer,
 ]
 
+FORECAST_HORIZON = [1, 2, 3]
+
 if not COMMIT_SHA:
     raise EnvironmentError("Missing required env var: COMMIT_SHA")
 
@@ -35,7 +37,7 @@ class ModelArtifactWrapper(mlflow.pyfunc.PythonModel):
         self.model_weights_path = context.artifacts["model_weights"]
 
 
-def run_optimizer(optim_cls: type[BaseOptimizer], dataset_cls: type[BaseDataset], dataset: BaseDataset):
+def run_optimizer(optim_cls: type[BaseOptimizer], dataset_cls: type[BaseDataset], dataset: BaseDataset, forecast_horizon: int):
     model_cls = optim_cls.MODEL
 
     mlflow.start_run(run_name=model_cls.NAME)
@@ -46,7 +48,7 @@ def run_optimizer(optim_cls: type[BaseOptimizer], dataset_cls: type[BaseDataset]
         "sha": COMMIT_SHA,
     })
 
-    optimizer = optim_cls(dataset=dataset, seed=SEED)
+    optimizer = optim_cls(dataset=dataset, seed=SEED, forecast_horizon=forecast_horizon)
     print(f"Running {model_cls.NAME} optimizer for {dataset_cls.NAME}...")
     study = optimizer.optimize()
     print(f"Optimizer completed for dataset {dataset_cls.NAME}.\n")
@@ -122,8 +124,9 @@ def run_optimizer(optim_cls: type[BaseOptimizer], dataset_cls: type[BaseDataset]
 def run_dataset(dataset_cls: type[BaseDataset]):
     print(f"Starting runs for dataset: {dataset_cls.NAME}")
     dataset = dataset_cls()
-    for optim_cls in OPTIMIZERS:
-        run_optimizer(optim_cls, dataset_cls, dataset)
+    for forecast_horizon in FORECAST_HORIZON:
+        for optim_cls in OPTIMIZERS:
+            run_optimizer(optim_cls, dataset_cls, dataset, forecast_horizon)
 
     print(f"Completed all models for dataset {dataset_cls.NAME}.\n")
 

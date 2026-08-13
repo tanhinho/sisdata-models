@@ -20,8 +20,9 @@ class LSTMModel(BaseModel):
         lr: float = 0.01,
         epochs: int = 100,
         batch_size: int = 32,
+        forecast_horizon: int = 3,
     ):
-        super().__init__(dataset=dataset, is_optimizing=is_optimizing)
+        super().__init__(dataset=dataset, is_optimizing=is_optimizing, forecast_horizon=forecast_horizon)
 
         self.seq_length = seq_length
         self.lr = lr
@@ -37,7 +38,7 @@ class LSTMModel(BaseModel):
             batch_first=True,
             dropout=dropout if num_layers > 1 else 0.0,
         )
-        self.fc = nn.Linear(hidden_size, self.FORECAST_HORIZON)
+        self.fc = nn.Linear(hidden_size, self.forecast_horizon)
         self.to(self.device)
 
     def forward(self, x, h0=None, c0=None):
@@ -59,14 +60,14 @@ class LSTMModel(BaseModel):
         X_train, y_train = self.dataset.create_sequences(
             df_train,
             self.seq_length,
-            self.FORECAST_HORIZON,
+            self.forecast_horizon,
             self.device,
         )
 
         X_test, y_test = self.dataset.create_sequences(
             df_test,
             self.seq_length,
-            self.FORECAST_HORIZON,
+            self.forecast_horizon,
             self.device,
         )
 

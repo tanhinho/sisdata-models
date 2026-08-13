@@ -46,8 +46,3 @@ For `RandomForestModel`:
 2. The training pipeline instantiates the selected model with those hyperparameters.
 3. The model trains/evaluates via `_fit_and_evaluate_impl(...)`.
 4. The parent training flow logs final artifacts (including model state dict and scaler), then registers the version in MLflow.
-
-## Notes
-
-- `BaseModel.FORECAST_HORIZON` must be changed to match the desired forecast horizon.
-- Device selection is automatic (`cuda` if available, otherwise `cpu`).

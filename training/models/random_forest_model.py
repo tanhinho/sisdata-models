@@ -18,8 +18,9 @@ class RandomForestModel(BaseModel):
         n_estimators: int = 100,
         max_depth: Optional[int] = None,
         seq_length: int = 32,
+        forecast_horizon: int = 3,
     ):
-        super().__init__(dataset=dataset, is_optimizing=is_optimizing)
+        super().__init__(dataset=dataset, is_optimizing=is_optimizing, forecast_horizon=forecast_horizon)
 
         self.seq_length = seq_length
         self.n_estimators = n_estimators
@@ -39,10 +40,10 @@ class RandomForestModel(BaseModel):
     def _fit_and_evaluate_impl(self, df_train, df_test) -> Tuple[float, Dict[str, object]]:
         # Prepare data using dataset helper
         X_train, y_train = self.dataset.create_sequences(
-            df_train, self.seq_length, self.FORECAST_HORIZON, self.device
+            df_train, self.seq_length, self.forecast_horizon, self.device
         )
         X_test, y_test = self.dataset.create_sequences(
-            df_test, self.seq_length, self.FORECAST_HORIZON, self.device
+            df_test, self.seq_length, self.forecast_horizon, self.device
         )
 
         X_train_np = X_train.cpu().numpy().reshape(X_train.shape[0], -1)

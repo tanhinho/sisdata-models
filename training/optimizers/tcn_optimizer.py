@@ -21,6 +21,7 @@ class TCNOptimizer(BaseOptimizer):
 
         model = self.MODEL(
             dataset=self.dataset,
+            forecast_horizon=self.forecast_horizon,
             is_optimizing=True,
             hidden_size=hidden_size,
             num_layers=num_layers,
