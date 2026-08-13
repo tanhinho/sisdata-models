@@ -35,94 +35,104 @@ class ModelArtifactWrapper(mlflow.pyfunc.PythonModel):
         self.model_weights_path = context.artifacts["model_weights"]
 
 
+def run_optimizer(optim_cls: type[BaseOptimizer], dataset_cls: type[BaseDataset], dataset: BaseDataset):
+    model_cls = optim_cls.MODEL
+
+    mlflow.start_run(run_name=model_cls.NAME)
+    mlflow.set_tags({
+        "dataset": dataset_cls.NAME,
+        "model": model_cls.NAME,
+        "run_type": "parent",
+        "sha": COMMIT_SHA,
+    })
+
+    optimizer = optim_cls(dataset=dataset, seed=SEED)
+    print(f"Running {model_cls.NAME} optimizer for {dataset_cls.NAME}...")
+    study = optimizer.optimize()
+    print(f"Optimizer completed for dataset {dataset_cls.NAME}.\n")
+    print(f"Best parameters found: {study.best_params}")
+    print(f"Best loss achieved: {study.best_value}\n")
+    print(f"Training model {model_cls.NAME} with best parameters...")
+    model = model_cls(dataset=dataset, is_optimizing=False, **study.best_params)
+    test_loss = model.fit_and_evaluate(run_name=f"final_model")
+    print(f"Model {model_cls.NAME} trained. Test loss: {test_loss}\n")
+
+    # Log the child's best parameters and test loss to the parent run
+    mlflow.log_params(study.best_params)
+    mlflow.log_metrics({"loss": test_loss})
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+
+        # Save the model to a temporary directory
+        model_path = os.path.join(tmpdir, "model.pt")
+        scaler_path = os.path.join(tmpdir, "scaler.pkl")
+
+        # Get the underlying PyTorch model
+        torch.save(model.state_dict(), model_path)
+        joblib.dump(model.dataset.scaler, scaler_path)
+
+        artifacts = {
+            "model": model_path,
+            "scaler": scaler_path,
+        }
+
+        mlflow.pyfunc.log_model(
+            artifact_path="model",
+            python_model=ModelArtifactWrapper(),
+            artifacts=artifacts
+        )
+
+    # Save the parent run ID before leaving the run.
+    run_id = mlflow.active_run().info.run_id
+
+    # Register this model as a new version of the same registered model.
+    model_uri = f"runs:/{run_id}/model"
+    model_version = mlflow.register_model(model_uri=model_uri, name=REGISTERED_MODEL_NAME)
+    mlflow.set_tag("model_version", model_version.version)
+
+    client = mlflow.MlflowClient()
+    client.set_model_version_tag(
+        name=REGISTERED_MODEL_NAME,
+        version=model_version.version,
+        key="sha",
+        value=COMMIT_SHA
+    )
+    client.set_model_version_tag(
+        name=REGISTERED_MODEL_NAME,
+        version=model_version.version,
+        key="dataset",
+        value=dataset_cls.NAME
+    )
+    client.set_model_version_tag(
+        name=REGISTERED_MODEL_NAME,
+        version=model_version.version,
+        key="architecture",
+        value=model_cls.NAME
+    )
+
+    print(
+        f"Registered {model_cls.NAME} as "
+        f"{REGISTERED_MODEL_NAME} "
+        f"version {model_version.version}"
+    )
+
+    mlflow.end_run()
+
+
+def run_dataset(dataset_cls: type[BaseDataset]):
+    print(f"Starting runs for dataset: {dataset_cls.NAME}")
+    dataset = dataset_cls()
+    for optim_cls in OPTIMIZERS:
+        run_optimizer(optim_cls, dataset_cls, dataset)
+
+    print(f"Completed all models for dataset {dataset_cls.NAME}.\n")
+
+
 def run_training():
     print("Starting training runs...")
     for dataset_cls in DATASETS:
-        print(f"Starting runs for dataset: {dataset_cls.NAME}")
-        dataset = dataset_cls()
-        for optim_cls in OPTIMIZERS:
-            model_cls = optim_cls.MODEL
-
-            mlflow.start_run(run_name=model_cls.NAME)
-            mlflow.set_tags({
-                "dataset": dataset_cls.NAME,
-                "model": model_cls.NAME,
-                "run_type": "parent",
-                "sha": COMMIT_SHA,
-            })
-
-            optimizer = optim_cls(dataset=dataset, seed=SEED)
-            print(f"Running {model_cls.NAME} optimizer for {dataset_cls.NAME}...")
-            study = optimizer.optimize()
-            print(f"Optimizer completed for dataset {dataset_cls.NAME}.\n")
-            print(f"Best parameters found: {study.best_params}")
-            print(f"Best loss achieved: {study.best_value}\n")
-            print(f"Training model {model_cls.NAME} with best parameters...")
-            model = model_cls(dataset=dataset, is_optimizing=False, **study.best_params)
-            test_loss = model.fit_and_evaluate(run_name=f"final_model")
-            print(f"Model {model_cls.NAME} trained. Test loss: {test_loss}\n")
-
-            # Log the child's best parameters and test loss to the parent run
-            mlflow.log_params(study.best_params)
-            mlflow.log_metrics({"loss": test_loss})
-
-            with tempfile.TemporaryDirectory() as tmpdir:
-
-                # Save the model to a temporary directory
-                model_path = os.path.join(tmpdir, "model.pt")
-                scaler_path = os.path.join(tmpdir, "scaler.pkl")
-
-                # Get the underlying PyTorch model
-                torch.save(model.state_dict(), model_path)
-                joblib.dump(model.dataset.scaler, scaler_path)
-
-                artifacts = {
-                    "model": model_path,
-                    "scaler": scaler_path,
-                }
-
-                mlflow.pyfunc.log_model(
-                    artifact_path="model",
-                    python_model=ModelArtifactWrapper(),
-                    artifacts=artifacts
-                )
-
-            # Save the parent run ID before leaving the run.
-            run_id = mlflow.active_run().info.run_id
-
-            # Register this model as a new version of the same registered model.
-            model_uri = f"runs:/{run_id}/model"
-            model_version = mlflow.register_model(model_uri=model_uri, name=REGISTERED_MODEL_NAME)
-            mlflow.set_tag("model_version", model_version.version)
-
-            client = mlflow.MlflowClient()
-            client.set_model_version_tag(
-                name=REGISTERED_MODEL_NAME,
-                version=model_version.version,
-                key="sha",
-                value=COMMIT_SHA
-            )
-            client.set_model_version_tag(
-                name=REGISTERED_MODEL_NAME,
-                version=model_version.version,
-                key="dataset",
-                value=dataset_cls.NAME
-            )
-            client.set_model_version_tag(
-                name=REGISTERED_MODEL_NAME,
-                version=model_version.version,
-                key="architecture",
-                value=model_cls.NAME
-            )
-
-            print(
-                f"Registered {model_cls.NAME} as "
-                f"{REGISTERED_MODEL_NAME} "
-                f"version {model_version.version}"
-            )
-
-            mlflow.end_run()
-        print(f"Completed all models for dataset {dataset_cls.NAME}.\n")
+        run_dataset(dataset_cls)
+    print("Completed all training runs.")
 
 
 def update_best_model():
