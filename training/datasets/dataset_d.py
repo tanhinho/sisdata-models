@@ -20,11 +20,7 @@ class DatasetD(BaseDataset):
         "Oxygenation Interventions",
         "Corrective Interventions",
         "Average Temperature (°C)",
-        "High Temperature (°C)",
-        "Low Temperature (°C)",
-        "Precipitation (inches)",
         "Oxygenation Automatic",
-        "Corrective Measures",
         "Thermal Risk Index",
         "Low Oxygen Alert",
         "Health Status",
@@ -47,11 +43,7 @@ class DatasetD(BaseDataset):
         "Oxygenation Interventions",
         "Corrective Interventions",
         "Average Temperature (°C)",
-        "High Temperature (°C)",
-        "Low Temperature (°C)",
-        "Precipitation (inches)",
         "Oxygenation Automatic",
-        "Corrective Measures",
         "Thermal Risk Index",
         "Low Oxygen Alert",
         "Health Status",
@@ -75,8 +67,13 @@ class DatasetD(BaseDataset):
         # Daily Aggregation
         df = df[self.MEAN_COLS].resample("D").mean()
 
-        # Linearly interpolate fish growth (TARGET_COL) across 15-day gaps
-        df[self.TARGET_COL] = df[self.TARGET_COL].interpolate(method="linear")
+        # SGR / exponential interpolation: interpolate in log-space, then exponentiate.
+        # This is equivalent to assuming constant instantaneous growth rate g
+        # between each pair of real measurements: W_t = W1 * exp(g*(t - t1)).
+        # Read the README.md for more details on this method\
+        log_target = np.log(df[self.TARGET_COL])
+        log_target_interp = log_target.interpolate(method="time")
+        df[self.TARGET_COL] = np.exp(log_target_interp)
 
         # Forward/backward fill small sensor gaps
         df[self.FEATURE_COLS] = df[self.FEATURE_COLS].ffill().bfill()
@@ -90,7 +87,6 @@ class DatasetD(BaseDataset):
     def _handle_categorical(self, df: pd.DataFrame) -> pd.DataFrame:
         """Convert categorical columns to numerical values."""
         df["Oxygenation Automatic"] = df["Oxygenation Automatic"].map({"Yes": 1, "No": 0})
-        df["Corrective Measures"] = df["Corrective Measures"].map({"Yes": 1, "No": 0})
         df["Thermal Risk Index"] = df["Thermal Risk Index"].map({"Normal": 0, "High": 1})
         df["Low Oxygen Alert"] = df["Low Oxygen Alert"].map({"Safe": 1})
         df["Health Status"] = df["Health Status"].map({"Stable": 0, "At Risk": 1})

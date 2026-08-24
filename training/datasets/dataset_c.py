@@ -18,15 +18,10 @@ class DatasetC(BaseDataset):
         "Oxygenation Interventions",
         "Corrective Interventions",
         "Average Temperature (°C)",
-        "High Temperature (°C)",
-        "Low Temperature (°C)",
-        "Precipitation (inches)",
         "Oxygenation Automatic",
-        "Corrective Measures",
         "Thermal Risk Index",
         "Low Oxygen Alert",
         "Health Status",
-
     ]
 
     TARGET_COL = "Average Fish Weight (g)"
@@ -86,7 +81,6 @@ class DatasetC(BaseDataset):
     def _handle_categorical(self, df: pd.DataFrame) -> pd.DataFrame:
         """Convert categorical columns to numerical values."""
         df["Oxygenation Automatic"] = df["Oxygenation Automatic"].map({"Yes": 1, "No": 0})
-        df["Corrective Measures"] = df["Corrective Measures"].map({"Yes": 1, "No": 0})
         df["Thermal Risk Index"] = df["Thermal Risk Index"].map({"Normal": 0, "High": 1})
         df["Low Oxygen Alert"] = df["Low Oxygen Alert"].map({"Safe": 1})
         df["Health Status"] = df["Health Status"].map({"Stable": 0, "At Risk": 1})

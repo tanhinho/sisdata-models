@@ -54,8 +54,13 @@ class DatasetB(BaseDataset):
         # Daily Aggregation
         df = df[self.MEAN_COLS].resample("D").mean()
 
-        # Linearly interpolate fish growth (TARGET_COL) across 15-day gaps
-        df[self.TARGET_COL] = df[self.TARGET_COL].interpolate(method="linear")
+        # SGR / exponential interpolation: interpolate in log-space, then exponentiate.
+        # This is equivalent to assuming constant instantaneous growth rate g
+        # between each pair of real measurements: W_t = W1 * exp(g*(t - t1)).
+        # Read the README.md for more details on this method\
+        log_target = np.log(df[self.TARGET_COL])
+        log_target_interp = log_target.interpolate(method="time")
+        df[self.TARGET_COL] = np.exp(log_target_interp)
 
         # Forward/backward fill small sensor gaps
         df[self.FEATURE_COLS] = df[self.FEATURE_COLS].ffill().bfill()
