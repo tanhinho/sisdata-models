@@ -1,8 +1,9 @@
+import mlflow
 import numpy as np
 from typing import Dict, Tuple, Optional
 
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 from datasets.base_dataset import BaseDataset
 from models.base_model import BaseModel
@@ -46,21 +47,32 @@ class RandomForestModel(BaseModel):
             df_test, self.seq_length, self.forecast_horizon, self.device
         )
 
+        # Reshape tensors to 2D for sklearn
         X_train_np = X_train.cpu().numpy().reshape(X_train.shape[0], -1)
-        y_train_np = y_train.cpu().numpy()
+        y_train_np = y_train.cpu().numpy().squeeze()
         X_test_np = X_test.cpu().numpy().reshape(X_test.shape[0], -1)
-        y_test_np = y_test.cpu().numpy()
+        y_test_np = y_test.cpu().numpy().squeeze()
 
         # Fit sklearn model
         self.model.fit(X_train_np, y_train_np)
 
-        preds = self.model.predict(X_test_np)
-        val_loss = float(mean_squared_error(y_test_np, preds))
+        # Predict and calculate MSE and unscaled MAE
+        preds_scaled = self.model.predict(X_test_np)
+        val_mse = float(mean_squared_error(y_test_np, preds_scaled))
 
+        preds_g = self.dataset.unscale_target(preds_scaled)
+        targets_g = self.dataset.unscale_target(y_test_np)
+        val_mae = float(mean_absolute_error(targets_g, preds_g))
+        mlflow.log_metrics({
+            "val_mse": val_mse,
+            "val_mae_grams": val_mae
+        })
+
+        print(f"RF Evaluation | Scaled MSE: {val_mse:.4f} | Gram MAE: {val_mae:.2f}g")
         params = {
             "seq_length": self.seq_length,
             "n_estimators": self.n_estimators,
             "max_depth": self.max_depth,
         }
 
-        return val_loss, params
+        return val_mse, params

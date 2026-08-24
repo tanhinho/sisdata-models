@@ -1,3 +1,4 @@
+import mlflow
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -53,7 +54,8 @@ class LSTMModel(BaseModel):
         return out, h_n, c_n
 
     def _fit_and_evaluate_impl(self, df_train, df_test) -> tuple[float, dict]:
-        criterion = nn.MSELoss()
+        criterion_mse = nn.MSELoss()
+        criterion_mae = nn.L1Loss()
         optimizer = optim.Adam(self.parameters(), lr=self.lr)
 
         # Basic mini-batch training loop
@@ -76,20 +78,47 @@ class LSTMModel(BaseModel):
 
         for epoch in range(self.epochs):
             self.train()
+
             for x_batch, y_batch in loader:
                 optimizer.zero_grad()
                 outputs, _, _ = self(x_batch)
-                loss = criterion(outputs, y_batch)
+                loss = criterion_mse(outputs, y_batch)
                 loss.backward()
                 optimizer.step()
 
-            print(f"Epoch {epoch+1}/{self.epochs}, Loss: {loss.item()}")
+            # Evaluate on validation set
+            self.eval()
+            with torch.no_grad():
+                val_preds_scaled, _, _ = self(X_test)
 
-        # Evaluate on validation set
-        self.eval()
-        with torch.no_grad():
-            val_preds, _, _ = self(X_test)
-            val_loss = criterion(val_preds, y_test).item()
+                # Scaled MSE
+                val_mse = criterion_mse(val_preds_scaled, y_test).item()
+
+                # Real Physical Gram MAE using L1Loss
+                val_preds_g = torch.tensor(
+                    self.dataset.unscale_target(val_preds_scaled), device=self.device
+                )
+                val_targets_g = torch.tensor(
+                    self.dataset.unscale_target(y_test), device=self.device
+                )
+                val_mae = criterion_mae(val_preds_g, val_targets_g).item()
+
+            train_mse = loss.item()
+            mlflow.log_metrics(
+                {
+                    "train_mse": train_mse,
+                    "val_mse": val_mse,
+                    "val_mae_grams": val_mae
+                },
+                step=epoch,
+            )
+
+            print(
+                f"Epoch {epoch+1:03d}/{self.epochs:03d} | "
+                f"Train MSE: {train_mse:.4f} | "
+                f"Val MSE: {val_mse:.4f} | "
+                f"Val MAE (grams): {val_mae:.4f}"
+            )
 
         # Return the MSE loss and the parameters used for training
         params = {
@@ -101,4 +130,4 @@ class LSTMModel(BaseModel):
             "num_layers": self.lstm.num_layers,
             "dropout": self.lstm.dropout if self.lstm.num_layers > 1 else 0.0,
         }
-        return val_loss, params
+        return val_mse, params
