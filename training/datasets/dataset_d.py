@@ -1,0 +1,97 @@
+from datasets.base_dataset import BaseDataset
+
+from typing import Tuple
+import numpy as np
+import pandas as pd
+import torch
+
+
+class DatasetD(BaseDataset):
+    """Class to handle loading and preprocessing of Dataset D."""
+    FILEPATH = "train-data/Data_Model_IoTMLCQ_2024.csv"
+
+    FEATURE_COLS = [
+        "Survival Rate (%)",
+        "Disease Occurrence (Cases)",
+        "Temperature (°C)",
+        "Dissolved Oxygen (mg/L)",
+        "pH",
+        "Turbidity (NTU)",
+        "Oxygenation Interventions",
+        "Corrective Interventions",
+        "Average Temperature (°C)",
+        "High Temperature (°C)",
+        "Low Temperature (°C)",
+        "Precipitation (inches)",
+        "Oxygenation Automatic",
+        "Corrective Measures",
+        "Thermal Risk Index",
+        "Low Oxygen Alert",
+        "Health Status",
+    ]
+
+    TARGET_COL = "Average Fish Weight (g)"
+
+    NAME = "dataset_d"
+
+    TIMESTAMP_COL = "Datetime"
+
+    MEAN_COLS = [
+        "Average Fish Weight (g)",
+        "Survival Rate (%)",
+        "Disease Occurrence (Cases)",
+        "Temperature (°C)",
+        "Dissolved Oxygen (mg/L)",
+        "pH",
+        "Turbidity (NTU)",
+        "Oxygenation Interventions",
+        "Corrective Interventions",
+        "Average Temperature (°C)",
+        "High Temperature (°C)",
+        "Low Temperature (°C)",
+        "Precipitation (inches)",
+        "Oxygenation Automatic",
+        "Corrective Measures",
+        "Thermal Risk Index",
+        "Low Oxygen Alert",
+        "Health Status",
+    ]
+
+    SCALE_TARGET = True
+
+    def _preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
+        # Strip trailing 3-4 letter timezone code (e.g., " CET")
+        regex = r"\s+[A-Z]{3,4}$"
+        clean_timestamps = df[self.TIMESTAMP_COL].astype(str).str.replace(regex, "", regex=True)
+        df[self.TIMESTAMP_COL] = pd.to_datetime(clean_timestamps)
+        df = df.dropna(subset=[self.TIMESTAMP_COL]).sort_values(self.TIMESTAMP_COL)
+
+        # Set time index to easily group by daily frequency ("D")
+        df = df.set_index(self.TIMESTAMP_COL)
+
+        # Handle categorical columns
+        df = self._handle_categorical(df)
+
+        # Daily Aggregation
+        df = df[self.MEAN_COLS].resample("D").mean()
+
+        # Linearly interpolate fish growth (TARGET_COL) across 15-day gaps
+        df[self.TARGET_COL] = df[self.TARGET_COL].interpolate(method="linear")
+
+        # Forward/backward fill small sensor gaps
+        df[self.FEATURE_COLS] = df[self.FEATURE_COLS].ffill().bfill()
+
+        df = df.reset_index().rename(columns={self.TIMESTAMP_COL: "date"})
+
+        df = df.dropna(subset=self.FEATURE_COLS + [self.TARGET_COL])
+
+        return df
+
+    def _handle_categorical(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Convert categorical columns to numerical values."""
+        df["Oxygenation Automatic"] = df["Oxygenation Automatic"].map({"Yes": 1, "No": 0})
+        df["Corrective Measures"] = df["Corrective Measures"].map({"Yes": 1, "No": 0})
+        df["Thermal Risk Index"] = df["Thermal Risk Index"].map({"Normal": 0, "High": 1})
+        df["Low Oxygen Alert"] = df["Low Oxygen Alert"].map({"Safe": 1})
+        df["Health Status"] = df["Health Status"].map({"Stable": 0, "At Risk": 1})
+        return df

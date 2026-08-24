@@ -32,9 +32,6 @@ class DatasetB(BaseDataset):
         "PH",
         "Ammonia(g/ml)",
         "Nitrate(g/ml)",
-    ]
-
-    LAST_COLS = [
         "Fish_Weight(g)",
     ]
 
@@ -55,38 +52,16 @@ class DatasetB(BaseDataset):
         df.loc[df["Ammonia(g/ml)"] < 0.0, "Ammonia(g/ml)"] = np.nan
 
         # Daily Aggregation
-        means = df[self.MEAN_COLS].resample("D").mean()
-        lasts = df[self.LAST_COLS].resample("D").last()
-
-        daily = pd.concat([means, lasts], axis=1)
+        df = df[self.MEAN_COLS].resample("D").mean()
 
         # Linearly interpolate fish growth (TARGET_COL) across 15-day gaps
-        daily[self.TARGET_COL] = daily[self.TARGET_COL].interpolate(method="linear")
+        df[self.TARGET_COL] = df[self.TARGET_COL].interpolate(method="linear")
 
         # Forward/backward fill small sensor gaps
-        daily[self.FEATURE_COLS] = daily[self.FEATURE_COLS].ffill().bfill()
+        df[self.FEATURE_COLS] = df[self.FEATURE_COLS].ffill().bfill()
 
-        daily = daily.reset_index().rename(columns={self.TIMESTAMP_COL: "date"})
+        df = df.reset_index().rename(columns={self.TIMESTAMP_COL: "date"})
 
-        daily = daily.dropna(subset=self.FEATURE_COLS + [self.TARGET_COL])
+        df = df.dropna(subset=self.FEATURE_COLS + [self.TARGET_COL])
 
-        return daily
-
-    def _aggregate_to_daily(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Loads 20-second data, aggregates daily, and interpolates target gaps."""
-
-    def _split_data(
-        self, df: pd.DataFrame, train_ratio: float, val_ratio: float
-    ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        """Performs a single chronological split across the whole dataset."""
-        df = df.sort_values("date").reset_index(drop=True)
-        n = len(df)
-
-        train_end = int(n * train_ratio)
-        val_end = int(n * (train_ratio + val_ratio))
-
-        df_train = df.iloc[:train_end].copy()
-        df_val = df.iloc[train_end:val_end].copy()
-        df_test = df.iloc[val_end:].copy()
-
-        return df_train, df_val, df_test
+        return df

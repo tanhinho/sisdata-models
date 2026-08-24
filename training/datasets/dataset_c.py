@@ -1,29 +1,39 @@
 from datasets.base_dataset import BaseDataset
 
-from typing import Tuple
 import numpy as np
 import pandas as pd
-import torch
 
 
-class DatasetA(BaseDataset):
-    """Class to handle loading and preprocessing of Dataset A."""
-    FILEPATH = "train-data/IoTpond1.csv"
+class DatasetC(BaseDataset):
+    """Class to handle loading and preprocessing of Dataset C."""
+    FILEPATH = "train-data/Data_Model_IoTMLCQ_2024.csv"
 
     FEATURE_COLS = [
-        "Temperature(C)",
-        "Turbidity(NTU)",
-        "Dissolved Oxygen(g/ml)",
-        "PH",
-        "Ammonia(g/ml)",
-        "Nitrate(g/ml)",
+        "Survival Rate (%)",
+        "Disease Occurrence (Cases)",
+        "Temperature (°C)",
+        "Dissolved Oxygen (mg/L)",
+        "pH",
+        "Turbidity (NTU)",
+        "Oxygenation Interventions",
+        "Corrective Interventions",
+        "Average Temperature (°C)",
+        "High Temperature (°C)",
+        "Low Temperature (°C)",
+        "Precipitation (inches)",
+        "Oxygenation Automatic",
+        "Corrective Measures",
+        "Thermal Risk Index",
+        "Low Oxygen Alert",
+        "Health Status",
+
     ]
 
-    TARGET_COL = "Fish_Weight(g)"
+    TARGET_COL = "Average Fish Weight (g)"
 
-    NAME = "dataset_a"
+    NAME = "dataset_c"
 
-    TIMESTAMP_COL = "created_at"
+    TIMESTAMP_COL = "Datetime"
 
     SCALE_TARGET = True
 
@@ -37,9 +47,8 @@ class DatasetA(BaseDataset):
         # Set time index to easily group by daily frequency ("D")
         df = df.set_index(self.TIMESTAMP_COL)
 
-        # Convert impossible physical values to NaN
-        df.loc[df["Ammonia(g/ml)"] > 10.0, "Ammonia(g/ml)"] = np.nan
-        df.loc[df["Ammonia(g/ml)"] < 0.0, "Ammonia(g/ml)"] = np.nan
+        # Handle categorical columns
+        df = self._handle_categorical(df)
 
         # Identify rows where the target value changes (new readings)
         is_new_reading = df[self.TARGET_COL].ne(df[self.TARGET_COL].shift())
@@ -72,4 +81,13 @@ class DatasetA(BaseDataset):
         # Drop any remaining NaNs at boundaries
         df = df.dropna(subset=self.FEATURE_COLS + [self.TARGET_COL])
 
+        return df
+
+    def _handle_categorical(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Convert categorical columns to numerical values."""
+        df["Oxygenation Automatic"] = df["Oxygenation Automatic"].map({"Yes": 1, "No": 0})
+        df["Corrective Measures"] = df["Corrective Measures"].map({"Yes": 1, "No": 0})
+        df["Thermal Risk Index"] = df["Thermal Risk Index"].map({"Normal": 0, "High": 1})
+        df["Low Oxygen Alert"] = df["Low Oxygen Alert"].map({"Safe": 1})
+        df["Health Status"] = df["Health Status"].map({"Stable": 0, "At Risk": 1})
         return df

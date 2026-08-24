@@ -5,7 +5,7 @@ import mlflow
 import tempfile
 import torch
 import os
-from datasets import BaseDataset, DatasetA, DatasetB
+from datasets import BaseDataset, DatasetA, DatasetB, DatasetC, DatasetD
 from optimizers import BaseOptimizer, LSTMOptimizer, TCNOptimizer, RandomForestOptimizer, TransformerOptimizer
 
 SEED = 42
@@ -15,7 +15,7 @@ MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI', 'http://localhost:5050')
 MLFLOW_EXPERIMENT_NAME = os.getenv('MLFLOW_EXPERIMENT_NAME', 'local-experiment')
 REGISTERED_MODEL_NAME = "fish-growth"
 
-DATASETS: List[type[BaseDataset]] = [DatasetA, DatasetB]
+DATASETS: List[type[BaseDataset]] = [DatasetA, DatasetB, DatasetC, DatasetD]
 OPTIMIZERS: List[type[BaseOptimizer]] = [
     LSTMOptimizer,
     TCNOptimizer,
