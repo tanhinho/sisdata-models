@@ -41,10 +41,8 @@ class BaseDataset(ABC):
         df = pd.read_csv(self.FILEPATH)
         df = self._remove_unused_columns(df)
         df = self._preprocess(df)
-        # DEBUG: Save the processed DataFrame to a CSV for inspection
-        df.to_csv(f"processed_{self.NAME}.csv", index=False)
         df_train, df_val, df_test = self._split_data(df, train_ratio, val_ratio)
-        df_train, df_val, df_test = self._select_features(df_train, df_val, df_test)
+        # df_train, df_val, df_test = self._select_features(df_train, df_val, df_test)
         df_train, df_val, df_test = self._scale_data(df_train, df_val, df_test)
         self.df_train = df_train
         self.df_val = df_val
