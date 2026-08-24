@@ -8,7 +8,7 @@ import torch
 
 class DatasetA(BaseDataset):
     """Class to handle loading and preprocessing of Dataset A."""
-    FILEPATH = "train-data/dataset_a/IoTpond1.csv"
+    FILEPATH = "train-data/IoTpond1.csv"
 
     FEATURE_COLS = [
         "Temperature(C)",
