@@ -3,6 +3,7 @@ import os
 import mlflow
 import torch
 import torch.nn as nn
+import pandas as pd
 
 from datasets.base_dataset import BaseDataset
 
@@ -61,9 +62,18 @@ class BaseModel(nn.Module, ABC):
 
             df_test = self.dataset.df_val if self.is_optimizing else self.dataset.df_test
 
-            loss, params = self._fit_and_evaluate_impl(self.dataset.df_train, df_test)
+            # If it's the last model training run, combine training and validation data for training
+            if not self.is_optimizing:
+                df_train = (
+                    pd.concat([self.dataset.df_train, self.dataset.df_val], ignore_index=True)
+                    .sort_values("date")
+                    .reset_index(drop=True)
+                )
+            else:
+                df_train = self.dataset.df_train
+
+            loss, params = self._fit_and_evaluate_impl(df_train, df_test)
             mlflow.log_params(params)
-            mlflow.log_metrics({"loss": loss})
             return loss
 
     @abstractmethod
