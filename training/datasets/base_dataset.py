@@ -149,8 +149,6 @@ class BaseDataset(ABC):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Create sequences of input features and target values for model training.
 
-        This method should be implemented by child classes to handle dataset-specific sequence creation logic.
-
         Args:
             df (pd.DataFrame): The DataFrame containing the dataset to create sequences from.
             sequence_length (int): The length of each sequence.
@@ -160,7 +158,29 @@ class BaseDataset(ABC):
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: A tuple containing the input feature sequences and target value sequences as PyTorch tensors.
         """
-        pass
+        df = df.sort_values("date").reset_index(drop=True)
+
+        features = df[self.FEATURE_COLS].values
+        targets = df[self.TARGET_COL].values
+
+        xs, ys = [], []
+        total_window = sequence_length + forecast_horizon
+
+        # Slide window step-by-step
+        for i in range(len(df) - total_window + 1):
+            x_win = features[i: i + sequence_length]
+            y_win = targets[i + sequence_length: i + total_window]
+
+            xs.append(x_win)
+            ys.append(y_win)
+
+        if not xs:
+            raise ValueError("No sequences created. Check dataset size or window parameters.")
+
+        X = torch.tensor(np.array(xs), dtype=torch.float32, device=device)
+        y = torch.tensor(np.array(ys), dtype=torch.float32, device=device)
+
+        return X, y
 
     @abstractmethod
     def _preprocess(self, df: pd.DataFrame) -> pd.DataFrame:

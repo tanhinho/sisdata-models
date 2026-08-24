@@ -86,35 +86,3 @@ class DatasetA(BaseDataset):
         df = df.dropna(subset=self.FEATURE_COLS + [self.TARGET_COL])
 
         return df
-
-    def create_sequences(
-        self,
-        df: pd.DataFrame,
-        sequence_length: int,
-        forecast_horizon: int,
-        device: torch.device = torch.device("cpu"),
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Creates sliding sequence windows directly from the dataset."""
-        df = df.sort_values("date").reset_index(drop=True)
-
-        features = df[self.FEATURE_COLS].values
-        targets = df[self.TARGET_COL].values
-
-        xs, ys = [], []
-        total_window = sequence_length + forecast_horizon
-
-        # Slide window step-by-step
-        for i in range(len(df) - total_window + 1):
-            x_win = features[i: i + sequence_length]
-            y_win = targets[i + sequence_length: i + total_window]
-
-            xs.append(x_win)
-            ys.append(y_win)
-
-        if not xs:
-            raise ValueError("No sequences created. Check dataset size or window parameters.")
-
-        X = torch.tensor(np.array(xs), dtype=torch.float32, device=device)
-        y = torch.tensor(np.array(ys), dtype=torch.float32, device=device)
-
-        return X, y
