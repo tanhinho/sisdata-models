@@ -17,4 +17,5 @@ dependencies = [
 	"uvicorn[standard]",
 	"httpx>=0.28.1",
 	"torch>=2.13.0",
+	"lightgbm>=4.7.0",
 ]
