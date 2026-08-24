@@ -70,9 +70,6 @@ class DatasetB(BaseDataset):
 
         daily = daily.dropna(subset=self.FEATURE_COLS + [self.TARGET_COL])
 
-        # Save csv for debugging purposes
-        daily.to_csv("dataset_b.csv", index=False)
-
         return daily
 
     def _aggregate_to_daily(self, df: pd.DataFrame) -> pd.DataFrame:

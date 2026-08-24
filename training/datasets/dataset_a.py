@@ -85,8 +85,6 @@ class DatasetA(BaseDataset):
         # Drop any remaining NaNs at boundaries
         df = df.dropna(subset=self.FEATURE_COLS + [self.TARGET_COL])
 
-        # Save csv for debugging purposes
-        df.to_csv("dataset_a.csv", index=False)
         return df
 
     def create_sequences(
