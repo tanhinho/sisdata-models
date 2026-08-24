@@ -5,8 +5,7 @@ import mlflow
 import tempfile
 import torch
 import os
-from datasets import DatasetA
-from datasets import BaseDataset
+from datasets import BaseDataset, DatasetA, DatasetB
 from optimizers import BaseOptimizer, LSTMOptimizer, TCNOptimizer, RandomForestOptimizer, TransformerOptimizer
 
 SEED = 42
@@ -16,7 +15,7 @@ MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI', 'http://localhost:5050')
 MLFLOW_EXPERIMENT_NAME = os.getenv('MLFLOW_EXPERIMENT_NAME', 'local-experiment')
 REGISTERED_MODEL_NAME = "fish-growth"
 
-DATASETS: List[type[BaseDataset]] = [DatasetA]
+DATASETS: List[type[BaseDataset]] = [DatasetA, DatasetB]
 OPTIMIZERS: List[type[BaseOptimizer]] = [
     LSTMOptimizer,
     TCNOptimizer,
@@ -59,12 +58,11 @@ def run_optimizer(optim_cls: type[BaseOptimizer], dataset_cls: type[BaseDataset]
     test_loss = model.fit_and_evaluate(run_name=f"final_model")
     print(f"Model {model_cls.NAME} trained. Test loss: {test_loss}\n")
 
-    # Log the child's best parameters and test loss to the parent run
+    # Log the child's best parameters to the parent run
+    # To get more information, access the child runs in MLflow UI
     mlflow.log_params(study.best_params)
-    mlflow.log_metrics({"loss": test_loss})
 
     with tempfile.TemporaryDirectory() as tmpdir:
-
         # Save the model to a temporary directory
         model_path = os.path.join(tmpdir, "model.pt")
         scaler_path = os.path.join(tmpdir, "scaler.pkl")
@@ -79,9 +77,10 @@ def run_optimizer(optim_cls: type[BaseOptimizer], dataset_cls: type[BaseDataset]
         }
 
         mlflow.pyfunc.log_model(
-            artifact_path="model",
+            name="model",
+            registered_model_name="fish-growth",
             python_model=ModelArtifactWrapper(),
-            artifacts=artifacts
+            artifacts=artifacts,
         )
 
     # Save the parent run ID before leaving the run.
