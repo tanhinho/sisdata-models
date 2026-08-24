@@ -6,8 +6,8 @@ import pandas as pd
 import torch
 
 
-class DatasetA(BaseDataset):
-    """Class to handle loading and preprocessing of Dataset A."""
+class DatasetB(BaseDataset):
+    """Class to handle loading and preprocessing of Dataset B."""
     FILEPATH = "train-data/dataset_a/IoTpond1.csv"
 
     FEATURE_COLS = [
@@ -21,7 +21,7 @@ class DatasetA(BaseDataset):
 
     TARGET_COL = "Fish_Weight(g)"
 
-    NAME = "dataset_a"
+    NAME = "dataset_b"
 
     TIMESTAMP_COL = "created_at"
 
@@ -54,40 +54,45 @@ class DatasetA(BaseDataset):
         df.loc[df["Ammonia(g/ml)"] > 10.0, "Ammonia(g/ml)"] = np.nan
         df.loc[df["Ammonia(g/ml)"] < 0.0, "Ammonia(g/ml)"] = np.nan
 
-        # Identify rows where the target value changes (new readings)
-        is_new_reading = df[self.TARGET_COL].ne(df[self.TARGET_COL].shift())
-        is_new_reading.iloc[0] = True  # always keep the very first row
+        # Daily Aggregation
+        means = df[self.MEAN_COLS].resample("D").mean()
+        lasts = df[self.LAST_COLS].resample("D").last()
 
-        # Create a sparse version of the target column, keeping only new readings
-        target_sparse = df[self.TARGET_COL].where(is_new_reading)
+        daily = pd.concat([means, lasts], axis=1)
 
-        # Find the index of the absolute last new reading
-        # is_new_reading[::-1].idxmax() reverses the series and finds the first True
-        last_reading_idx = is_new_reading[::-1].idxmax()
-
-        # Truncate the dataframe up to and including the last true reading
-        df = df.loc[:last_reading_idx]
-        is_new_reading = is_new_reading.loc[:last_reading_idx]
-
-        # SGR / exponential interpolation: interpolate in log-space, then exponentiate.
-        # This is equivalent to assuming constant instantaneous growth rate g
-        # between each pair of real measurements: W_t = W1 * exp(g*(t - t1)).
-        # Read the README.md for more details on this method\
-        log_target = np.log(target_sparse)
-        log_target_interp = log_target.interpolate(method="time")
-        df[self.TARGET_COL] = np.exp(log_target_interp)
+        # Linearly interpolate fish growth (TARGET_COL) across 15-day gaps
+        daily[self.TARGET_COL] = daily[self.TARGET_COL].interpolate(method="linear")
 
         # Forward/backward fill small sensor gaps
-        df[self.FEATURE_COLS] = df[self.FEATURE_COLS].ffill().bfill()
+        daily[self.FEATURE_COLS] = daily[self.FEATURE_COLS].ffill().bfill()
 
-        df = df.reset_index().rename(columns={self.TIMESTAMP_COL: "date"})
+        daily = daily.reset_index().rename(columns={self.TIMESTAMP_COL: "date"})
 
-        # Drop any remaining NaNs at boundaries
-        df = df.dropna(subset=self.FEATURE_COLS + [self.TARGET_COL])
+        daily = daily.dropna(subset=self.FEATURE_COLS + [self.TARGET_COL])
 
         # Save csv for debugging purposes
-        df.to_csv("dataset_a.csv", index=False)
-        return df
+        daily.to_csv("dataset_b.csv", index=False)
+
+        return daily
+
+    def _aggregate_to_daily(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Loads 20-second data, aggregates daily, and interpolates target gaps."""
+
+    def _split_data(
+        self, df: pd.DataFrame, train_ratio: float, val_ratio: float
+    ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """Performs a single chronological split across the whole dataset."""
+        df = df.sort_values("date").reset_index(drop=True)
+        n = len(df)
+
+        train_end = int(n * train_ratio)
+        val_end = int(n * (train_ratio + val_ratio))
+
+        df_train = df.iloc[:train_end].copy()
+        df_val = df.iloc[train_end:val_end].copy()
+        df_test = df.iloc[val_end:].copy()
+
+        return df_train, df_val, df_test
 
     def create_sequences(
         self,
@@ -96,7 +101,6 @@ class DatasetA(BaseDataset):
         forecast_horizon: int,
         device: torch.device = torch.device("cpu"),
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Creates sliding sequence windows directly from the dataset."""
         df = df.sort_values("date").reset_index(drop=True)
 
         features = df[self.FEATURE_COLS].values
@@ -120,3 +124,11 @@ class DatasetA(BaseDataset):
         y = torch.tensor(np.array(ys), dtype=torch.float32, device=device)
 
         return X, y
+
+    def unscale_target(self, y_scaled: torch.Tensor | np.ndarray) -> np.ndarray:
+        if isinstance(y_scaled, torch.Tensor):
+            y_scaled = y_scaled.detach().cpu().numpy()
+
+        shape = y_scaled.shape
+        unscaled = self.target_scaler.inverse_transform(y_scaled.reshape(-1, 1))
+        return unscaled.reshape(shape)

@@ -1,4 +1,4 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 from typing import Tuple
 
 import numpy as np
@@ -10,12 +10,13 @@ import torch
 class BaseDataset(ABC):
     """Abstract base class for time-series datasets.
 
-    Child classes should only define:
+    Child classes should define:
         FILEPATH
         TIMESTAMP_COL
         FEATURE_COLS
         TARGET_COL
         NAME
+        SCALE_TARGET
 
     The dataset handles:
         - loading and cleaning
@@ -30,6 +31,7 @@ class BaseDataset(ABC):
     TIMESTAMP_COL: str = ""
     TARGET_COL: str = ""
     NAME: str = None
+    SCALE_TARGET: bool = True  # Whether to scale the target values or not.
 
     # Columns that should be averaged when aggregating to daily data.
     MEAN_COLS: list[str] = []
@@ -37,113 +39,107 @@ class BaseDataset(ABC):
     # Columns for which the last observation of the day should be used.
     LAST_COLS: list[str] = []
 
-    def __init__(
-        self,
-        train_ratio: float = 0.7,
-        val_ratio: float = 0.15,
-    ):
-        (
-            self.df_train,
-            self.df_val,
-            self.df_test,
-            self.scaler,
-        ) = self._load_and_preprocess(
-            train_ratio=train_ratio,
-            val_ratio=val_ratio,
-        )
+    def __init__(self, train_ratio: float = 0.7, val_ratio: float = 0.15):
+        df = pd.read_csv(self.FILEPATH)
+        df = self._remove_unused_columns(df)
+        df = self._preprocess(df)
+        df_train, df_val, df_test = self._split_data(df, train_ratio, val_ratio)
+        df_train, df_val, df_test = self._scale_data(df_train, df_val, df_test)
+        self.df_train = df_train
+        self.df_val = df_val
+        self.df_test = df_test
 
-    def _load_and_preprocess(
-        self,
-        train_ratio: float = 0.7,
-        val_ratio: float = 0.15,
-    ) -> Tuple[
-        pd.DataFrame,
-        pd.DataFrame,
-        pd.DataFrame,
-        StandardScaler,
-    ]:
-        """Load, aggregate, split and scale the dataset.
+    def _remove_unused_columns(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Remove columns that are not in FEATURE_COLS, TARGET_COL, or TIMESTAMP_COL.
 
         Args:
-            train_ratio: Proportion of data to use for training.
-            val_ratio: Proportion of data to use for validation.
+            df (pd.DataFrame): The DataFrame to clean.
 
-            The test ratio is implicitly 1 - train_ratio - val_ratio.
         Returns:
-            Tuple of (train_df, val_df, test_df, scaler).
+                pd.DataFrame: The cleaned DataFrame.
         """
-        df = pd.read_csv(self.FILEPATH).dropna(subset=[self.TIMESTAMP_COL])
+        allowed_cols = set(self.FEATURE_COLS + [self.TARGET_COL, self.TIMESTAMP_COL])
+        return df.loc[:, df.columns.intersection(allowed_cols)]
 
-        # Clean timestamps
-        timestamp_series = (
-            df[self.TIMESTAMP_COL]
-            .astype("string")
-            .str.strip()
-            .str.replace(r"\s+(UTC|CET|CEST|GMT)$", "", regex=True)
-            .str.replace(r"\s+[+-]\d{2}:\d{2}$", "", regex=True)
-            .str.replace("T", " ", regex=False)
+    def _scale_data(self, df_train: pd.DataFrame, df_val: pd.DataFrame, df_test: pd.DataFrame):
+        """Scales the features and, optionally, the target values.
+
+        This method fits a StandardScaler on the training set and transforms the training, validation, and test sets accordingly.
+        The scaled values are stored in the respective DataFrames (df_train, df_val, df_test),
+        and the scalers are stored as attributes (scaler for features, target_scaler for the target).
+        If SCALE_TARGET is set to False, the target values will not be scaled, and target_scaler will be set to None.
+
+        Args:
+            df_train (pd.DataFrame): The training set.
+            df_val (pd.DataFrame): The validation set.
+            df_test (pd.DataFrame): The test set.
+        """
+        # Scale features (fit ONLY on train set)
+        self.scaler = StandardScaler()
+        df_train[self.FEATURE_COLS] = self.scaler.fit_transform(
+            df_train[self.FEATURE_COLS]
         )
-        df[self.TIMESTAMP_COL] = pd.to_datetime(timestamp_series, errors="coerce")
-        df = df.dropna(subset=[self.TIMESTAMP_COL]).sort_values(self.TIMESTAMP_COL)
+        df_val[self.FEATURE_COLS] = self.scaler.transform(
+            df_val[self.FEATURE_COLS]
+        )
+        df_test[self.FEATURE_COLS] = self.scaler.transform(
+            df_test[self.FEATURE_COLS]
+        )
 
-        # Daily aggregation (including pond column)
-        df["date"] = df[self.TIMESTAMP_COL].dt.floor("D")
+        if not self.SCALE_TARGET:
+            self.target_scaler = None
+            return df_train, df_val, df_test
 
-        # Group by pond and date for mean/last aggregations
-        daily_mean = df.groupby(["pond", "date"])[self.MEAN_COLS].mean()
-        daily_last = df.groupby(["pond", "date"])[self.LAST_COLS].last()
-        df = pd.concat([daily_mean, daily_last], axis=1).reset_index()
+        # Scale the target (fit ONLY on train set)
+        self.target_scaler = StandardScaler()
+        df_train[self.TARGET_COL] = self.target_scaler.fit_transform(
+            df_train[[self.TARGET_COL]]
+        )
+        df_val[self.TARGET_COL] = self.target_scaler.transform(
+            df_val[[self.TARGET_COL]]
+        )
+        df_test[self.TARGET_COL] = self.target_scaler.transform(
+            df_test[[self.TARGET_COL]]
+        )
 
-        # --- PROCESS EACH POND SEPARATELY ---
-        processed_ponds = []
-        all_cols = list(set(self.FEATURE_COLS + [self.TARGET_COL]))
+        return df_train, df_val, df_test
 
-        for pond_id, group in df.groupby("pond"):
-            group = group.sort_values("date")
+    def _split_data(
+        self, df: pd.DataFrame, train_ratio: float, val_ratio: float
+    ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """Performs a single chronological split across the whole dataset."""
+        df = df.sort_values("date").reset_index(drop=True)
+        n = len(df)
 
-            # Reindex full date range for THIS specific pond
-            full_date_range = pd.date_range(
-                start=group["date"].min(),
-                end=group["date"].max(),
-                freq="D",
-            )
-            group = group.set_index("date").reindex(full_date_range)
+        train_end = int(n * train_ratio)
+        val_end = int(n * (train_ratio + val_ratio))
 
-            # Interpolate short gaps within this pond only
-            group[all_cols] = group[all_cols].interpolate(method="linear", limit=3)
-            group[all_cols] = group[all_cols].ffill().bfill()
+        df_train = df.iloc[:train_end].copy()
+        df_val = df.iloc[train_end:val_end].copy()
+        df_test = df.iloc[val_end:].copy()
 
-            group["pond"] = pond_id
-            group = group.reset_index(names="date")
-            processed_ponds.append(group)
+        return df_train, df_val, df_test
 
-        df_processed = pd.concat(processed_ponds, ignore_index=True)
+    def unscale_target(self, scaled_target: np.ndarray) -> np.ndarray:
+        """Unscale the target values back to their original scale.
 
-        # --- CHRONOLOGICAL SPLIT PER POND ---
-        train_dfs, val_dfs, test_dfs = [], [], []
+        Args:
+            scaled_target (np.ndarray): The scaled target values to unscale.
 
-        for pond_id, group in df_processed.groupby("pond"):
-            group = group.sort_values("date").reset_index(drop=True)
-            n = len(group)
-            train_end = int(n * train_ratio)
-            val_end = int(n * (train_ratio + val_ratio))
+        Returns:
+            np.ndarray: The unscaled target values.
+        """
+        if not self.SCALE_TARGET:
+            return scaled_target  # No scaling was applied, return as is.
 
-            train_dfs.append(group.iloc[:train_end])
-            val_dfs.append(group.iloc[train_end:val_end])
-            test_dfs.append(group.iloc[val_end:])
+        if isinstance(scaled_target, torch.Tensor):
+            scaled_target = scaled_target.detach().cpu().numpy()
 
-        df_train = pd.concat(train_dfs, ignore_index=True)
-        df_val = pd.concat(val_dfs, ignore_index=True)
-        df_test = pd.concat(test_dfs, ignore_index=True)
+        shape = scaled_target.shape
+        unscaled = self.target_scaler.inverse_transform(scaled_target.reshape(-1, 1))
+        return unscaled.reshape(shape)
 
-        # Scale features
-        scaler = StandardScaler()
-        df_train[self.FEATURE_COLS] = scaler.fit_transform(df_train[self.FEATURE_COLS])
-        df_val[self.FEATURE_COLS] = scaler.transform(df_val[self.FEATURE_COLS])
-        df_test[self.FEATURE_COLS] = scaler.transform(df_test[self.FEATURE_COLS])
-
-        return df_train, df_val, df_test, scaler
-
+    @abstractmethod
     def create_sequences(
         self,
         df: pd.DataFrame,
@@ -151,55 +147,32 @@ class BaseDataset(ABC):
         forecast_horizon: int,
         device: torch.device = torch.device("cpu"),
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Create consecutive daily sequences for time-series forecasting.
+        """Create sequences of input features and target values for model training.
+
+        This method should be implemented by child classes to handle dataset-specific sequence creation logic.
 
         Args:
-            df: DataFrame to create sequences from.
-            sequence_length: Number of past days used as input.
-            forecast_horizon: Number of future days to predict.
-            device: Torch device.
+            df (pd.DataFrame): The DataFrame containing the dataset to create sequences from.
+            sequence_length (int): The length of each sequence.
+            forecast_horizon (int): The number of time steps to forecast.
+            device (torch.device, optional): The device to move the tensors to. Defaults to torch.device("cpu").
 
         Returns:
-            Tuple of (X, y) tensors, where X has shape (num_sequences, sequence_length, num_features)
-            and y has shape (num_sequences, forecast_horizon).
+            Tuple[torch.Tensor, torch.Tensor]: A tuple containing the input feature sequences and target value sequences as PyTorch tensors.
         """
-        xs, ys = [], []
-        total_window = sequence_length + forecast_horizon
-        one_day = np.timedelta64(1, "D")
+        pass
 
-        # Group by pond so sequence windows NEVER mix across ponds
-        for pond_id, group in df.groupby("pond"):
-            group = group.sort_values("date").reset_index(drop=True)
+    @abstractmethod
+    def _preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Preprocess the dataset.
 
-            features = group[self.FEATURE_COLS].values
-            targets = group[self.TARGET_COL].values
-            dates = pd.to_datetime(group["date"]).values
+        This method should be implemented by child classes to handle dataset-specific preprocessing
+        steps, such as filtering, renaming columns, or handling missing values.
 
-            for i in range(len(group) - total_window + 1):
-                input_start = i
-                input_end = i + sequence_length
-                forecast_end = input_end + forecast_horizon
+        Args:
+            df: Raw DataFrame loaded from the dataset's CSV file.
 
-                input_features = features[input_start:input_end]
-                forecast_targets = targets[input_end:forecast_end]
-                window_dates = dates[input_start:forecast_end]
-
-                # 1. Skip if window contains NaNs
-                if np.isnan(input_features).any() or np.isnan(forecast_targets).any():
-                    continue
-
-                # 2. Strict consecutive days check inside this pond
-                date_diffs = np.diff(window_dates)
-                if not np.all(date_diffs == one_day):
-                    continue
-
-                xs.append(input_features)
-                ys.append(forecast_targets)
-
-        if len(xs) == 0:
-            raise ValueError("No valid sequences created! Check window sizes or data gaps.")
-
-        X = torch.tensor(np.asarray(xs), dtype=torch.float32, device=device)
-        y = torch.tensor(np.asarray(ys), dtype=torch.float32, device=device)
-
-        return X, y
+        Returns:
+            pd.DataFrame: Preprocessed DataFrame ready for further processing.
+        """
+        pass
