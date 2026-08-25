@@ -124,6 +124,7 @@ def run_dataset(dataset_cls: type[BaseDataset]):
     print(f"Starting runs for dataset: {dataset_cls.NAME}")
     dataset = dataset_cls()
     for forecast_horizon in FORECAST_HORIZON:
+        print(f"Running optimizers for forecast horizon: {forecast_horizon}")
         for optim_cls in OPTIMIZERS:
             run_optimizer(optim_cls, dataset_cls, dataset, forecast_horizon)
 
