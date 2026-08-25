@@ -54,7 +54,12 @@ def run_optimizer(optim_cls: type[BaseOptimizer], dataset_cls: type[BaseDataset]
     print(f"Best parameters found: {study.best_params}")
     print(f"Best loss achieved: {study.best_value}\n")
     print(f"Training model {model_cls.NAME} with best parameters...")
-    model = model_cls(dataset=dataset, is_optimizing=False, **study.best_params)
+    model = model_cls(
+        dataset=dataset,
+        is_optimizing=False,
+        forecast_horizon=forecast_horizon,
+        **study.best_params,
+    )
     test_loss = model.fit_and_evaluate(run_name=f"final_model")
     print(f"Model {model_cls.NAME} trained. Test loss: {test_loss}\n")
 
