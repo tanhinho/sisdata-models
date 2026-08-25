@@ -130,12 +130,17 @@ class TransformerModel(BaseModel):
                 )
                 val_mae = criterion_mae(val_preds_g, val_targets_g).item()
 
+                ss_res = torch.sum((val_targets_g - val_preds_g) ** 2)
+                ss_tot = torch.sum((val_targets_g - torch.mean(val_targets_g)) ** 2)
+                val_r2 = (1 - (ss_res / (ss_tot + 1e-8))).item()
+
             train_mse = loss.item()
             mlflow.log_metrics(
                 {
                     "train_mse": train_mse,
                     "val_mse": val_mse,
-                    "val_mae_grams": val_mae
+                    "val_mae_grams": val_mae,
+                    "val_r2": val_r2,
                 },
                 step=epoch,
             )
@@ -144,7 +149,8 @@ class TransformerModel(BaseModel):
                 f"Epoch {epoch+1:03d}/{self.epochs:03d} | "
                 f"Train MSE: {train_mse:.4f} | "
                 f"Val MSE: {val_mse:.4f} | "
-                f"Val MAE (grams): {val_mae:.4f}"
+                f"Val MAE (grams): {val_mae:.4f} | "
+                f"Val R²: {val_r2:.4f}"
             )
 
         params = {

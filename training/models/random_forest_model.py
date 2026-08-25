@@ -63,12 +63,17 @@ class RandomForestModel(BaseModel):
         preds_g = self.dataset.unscale_target(preds_scaled)
         targets_g = self.dataset.unscale_target(y_test_np)
         val_mae = float(mean_absolute_error(targets_g, preds_g))
+        ss_res = np.sum((targets_g - preds_g) ** 2)
+        ss_tot = np.sum((targets_g - np.mean(targets_g)) ** 2)
+        val_r2 = float(1 - (ss_res / (ss_tot + 1e-8)))
         mlflow.log_metrics({
             "val_mse": val_mse,
-            "val_mae_grams": val_mae
+            "val_mae_grams": val_mae,
+            "val_r2": val_r2
         })
 
-        print(f"RF Evaluation | Scaled MSE: {val_mse:.4f} | Gram MAE: {val_mae:.2f}g")
+        print(
+            f"RF Evaluation | Scaled MSE: {val_mse:.4f} | Gram MAE: {val_mae:.2f}g | R²: {val_r2:.4f}")
         params = {
             "seq_length": self.seq_length,
             "n_estimators": self.n_estimators,
