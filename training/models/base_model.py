@@ -55,6 +55,7 @@ class BaseModel(nn.Module, ABC):
             run_type = "optuna_trial" if self.is_optimizing else "final_model"
             mlflow.set_tags({
                 "dataset": self.dataset.NAME,
+                "forecast_horizon": self.forecast_horizon,
                 "model": self.NAME,
                 "run_type": run_type,
                 "sha": COMMIT_SHA,
