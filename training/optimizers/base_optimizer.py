@@ -20,7 +20,7 @@ class BaseOptimizer(ABC):
         self,
         dataset: BaseDataset,
         forecast_horizon: int = 3,
-        n_trials: int = 30,
+        n_trials: int = 10,
         seed: Optional[int] = None,
     ):
         self.forecast_horizon = forecast_horizon
