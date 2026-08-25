@@ -6,15 +6,13 @@ Because the datasets come from different fish species and sources, the preproces
 
 ## Where Raw Training Data Must Be Placed
 
-Current training code expects Dataset A at:
+Current training code expects data at:
 
-- `train-data/dataset_a.csv` (repository root)
+- `train-data` (repository root)
 
 This is important for Docker Compose because the training service bind-mounts:
 
 - local `./train-data` -> container `/app/train-data`
-
-So inside the container, the dataset is resolved as `/app/train-data/dataset_a.csv`, matching the dataset loader path `train-data/dataset_a.csv` relative to `/app`.
 
 If your raw source files are stored elsewhere (for example under `data/`), copy or sync the needed file to `train-data/` before running training, or update both:
 

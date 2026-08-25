@@ -35,7 +35,6 @@ This module trains fish growth models, tracks experiments in MLflow, registers m
 ## Inputs
 
 - Raw CSV files expected by dataset classes.
-- For Dataset A, current code reads from `train-data/dataset_a.csv`.
 - Environment variables (see below).
 
 ## Outputs
@@ -83,7 +82,7 @@ docker compose up -d mlflow
 
 1. Ensure the expected training data path exists at repository root:
 
-- `train-data/dataset_a.csv`
+- `train-data`
 
 1. Run training container:
 
