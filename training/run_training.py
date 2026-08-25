@@ -23,7 +23,7 @@ OPTIMIZERS: List[type[BaseOptimizer]] = [
     TransformerOptimizer,
 ]
 
-FORECAST_HORIZON = [1, 2, 3]
+FORECAST_HORIZON = [3]
 
 if not COMMIT_SHA:
     raise EnvironmentError("Missing required env var: COMMIT_SHA")
