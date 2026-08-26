@@ -175,7 +175,7 @@ class TCNModel(BaseModel):
 
         params = {
             "seq_length": self.seq_length,
-            "learning_rate": self.lr,
+            "lr": self.lr,
             "epochs": self.epochs,
             "batch_size": self.batch_size,
             "hidden_size": self.tcn.network[-1].net[0].in_channels if hasattr(self.tcn.network[-1], 'net') else None,

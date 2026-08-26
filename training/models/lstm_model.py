@@ -129,7 +129,7 @@ class LSTMModel(BaseModel):
         # Return the MSE loss and the parameters used for training
         params = {
             "seq_length": self.seq_length,
-            "learning_rate": self.lr,
+            "lr": self.lr,
             "epochs": self.epochs,
             "batch_size": self.batch_size,
             "hidden_size": self.lstm.hidden_size,

@@ -155,7 +155,7 @@ class TransformerModel(BaseModel):
 
         params = {
             "seq_length": self.seq_length,
-            "learning_rate": self.lr,
+            "lr": self.lr,
             "epochs": self.epochs,
             "batch_size": self.batch_size,
             "d_model": self.d_model,
