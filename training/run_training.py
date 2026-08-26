@@ -52,7 +52,7 @@ def run_optimizer(optim_cls: type[BaseOptimizer], dataset_cls: type[BaseDataset]
     study = optimizer.optimize()
     print(f"Optimizer completed for dataset {dataset_cls.NAME}.\n")
     print(f"Best parameters found: {study.best_params}")
-    print(f"Best loss achieved: {study.best_value}\n")
+    print(f"Best mse achieved: {study.best_value}\n")
     print(f"Training model {model_cls.NAME} with best parameters...")
     model = model_cls(
         dataset=dataset,
@@ -60,8 +60,8 @@ def run_optimizer(optim_cls: type[BaseOptimizer], dataset_cls: type[BaseDataset]
         forecast_horizon=forecast_horizon,
         **study.best_params,
     )
-    test_loss = model.fit_and_evaluate(run_name=f"final_model")
-    print(f"Model {model_cls.NAME} trained. Test loss: {test_loss}\n")
+    test_mse = model.fit_and_evaluate(run_name=f"final_model")
+    print(f"Model {model_cls.NAME} trained. Test mse: {test_mse}\n")
 
     # Log the child's best parameters to the parent run
     # To get more information, access the child runs in MLflow UI
@@ -159,7 +159,7 @@ def update_best_model():
             f"tags.sha = '{COMMIT_SHA}' "
             "AND tags.run_type = 'parent'"
         ),
-        order_by=["metrics.loss ASC"],
+        order_by=["metrics.val_mse ASC"],
     )
 
     if not current_runs:
@@ -169,13 +169,13 @@ def update_best_model():
 
     # Best model from the current commit
     current_best = current_runs[0]
-    current_best_loss = current_best.data.metrics["loss"]
+    current_best_mse = current_best.data.metrics["val_mse"]
     current_best_version = current_best.data.tags.get("model_version")
 
     print(
         f"Best model for {COMMIT_SHA}: "
         f"{current_best.info.run_id} "
-        f"(version={current_best_version}, loss={current_best_loss})"
+        f"(version={current_best_version}, mse={current_best_mse})"
     )
 
     # Find the model currently marked as best
@@ -183,7 +183,7 @@ def update_best_model():
         previous_best = client.get_model_version_by_alias(name=REGISTERED_MODEL_NAME, alias="best")
 
         previous_best_run = client.get_run(previous_best.run_id)
-        previous_best_loss = previous_best_run.data.metrics["loss"]
+        previous_best_mse = previous_best_run.data.metrics["val_mse"]
     except mlflow.exceptions.RestException:
         previous_best = None
 
@@ -199,11 +199,11 @@ def update_best_model():
 
     print(
         f"Previous best: {previous_best_run.info.run_id} "
-        f"(version={previous_best.version}, loss={previous_best_loss})"
+        f"(version={previous_best.version}, mse={previous_best_mse})"
     )
 
     # Only replace the best model if the new one is better
-    if current_best_loss < previous_best_loss:
+    if current_best_mse < previous_best_mse:
         # Mark new model as best
         client.set_registered_model_alias(
             name=REGISTERED_MODEL_NAME,
@@ -213,7 +213,7 @@ def update_best_model():
 
         print(
             f"New best model! "
-            f"{current_best_loss} < {previous_best_loss}"
+            f"{current_best_mse} < {previous_best_mse}"
         )
 
     else:

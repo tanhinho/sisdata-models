@@ -49,7 +49,7 @@ class BaseModel(nn.Module, ABC):
         Args:
             **kwargs: Additional arguments for training and evaluation.
         Returns:
-            float: The evaluation metric (e.g., loss).
+            float: The evaluation metric (e.g., mse).
         """
         with mlflow.start_run(run_name=run_name, nested=True):
             run_type = "optuna_trial" if self.is_optimizing else "final_model"
@@ -73,9 +73,9 @@ class BaseModel(nn.Module, ABC):
             else:
                 df_train = self.dataset.df_train
 
-            loss, params = self._fit_and_evaluate_impl(df_train, df_test)
+            mse, params = self._fit_and_evaluate_impl(df_train, df_test)
             mlflow.log_params(params)
-            return loss
+            return mse
 
     @abstractmethod
     def _fit_and_evaluate_impl(self, df_train, df_test) -> tuple[float, dict]:
@@ -87,6 +87,6 @@ class BaseModel(nn.Module, ABC):
             df_test (pd.DataFrame): Test data.
 
         Returns:
-            tuple[float, dict]: A tuple containing the evaluation metric (e.g., validation loss) and a dictionary of parameters to log.
+            tuple[float, dict]: A tuple containing the evaluation metric (e.g., validation mse) and a dictionary of parameters to log.
         """
         pass
