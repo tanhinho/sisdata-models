@@ -22,3 +22,6 @@ train-data/
 
 # Debugging
 debug/
+
+# Artifacts
+artifacts/
