@@ -49,9 +49,9 @@ class RandomForestModel(BaseModel):
 
         # Reshape tensors to 2D for sklearn
         X_train_np = X_train.cpu().numpy().reshape(X_train.shape[0], -1)
-        y_train_np = y_train.cpu().numpy().squeeze()
+        y_train_np = y_train.cpu().numpy().reshape(y_train.shape[0], -1)
         X_test_np = X_test.cpu().numpy().reshape(X_test.shape[0], -1)
-        y_test_np = y_test.cpu().numpy().squeeze()
+        y_test_np = y_test.cpu().numpy().reshape(y_test.shape[0], -1)
 
         # Fit sklearn model
         self.model.fit(X_train_np, y_train_np)
