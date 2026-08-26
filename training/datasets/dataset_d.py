@@ -64,9 +64,6 @@ class DatasetD(BaseDataset):
         # Handle categorical columns
         df = self._handle_categorical(df)
 
-        # Daily Aggregation
-        df = df[self.MEAN_COLS].resample("D").mean()
-
         # SGR / exponential interpolation: interpolate in log-space, then exponentiate.
         # This is equivalent to assuming constant instantaneous growth rate g
         # between each pair of real measurements: W_t = W1 * exp(g*(t - t1)).
@@ -77,6 +74,9 @@ class DatasetD(BaseDataset):
 
         # Forward/backward fill small sensor gaps
         df[self.FEATURE_COLS] = df[self.FEATURE_COLS].ffill().bfill()
+
+        # Daily Aggregation
+        df = df[self.MEAN_COLS].resample("D").mean()
 
         df = df.reset_index().rename(columns={self.TIMESTAMP_COL: "date"})
 
