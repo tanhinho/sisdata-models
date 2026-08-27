@@ -2,11 +2,9 @@ from typing import List
 
 import joblib
 import mlflow
-import tempfile
-import torch
 import os
 from datasets import BaseDataset, DatasetA, DatasetB, DatasetC, DatasetD
-from optimizers import BaseOptimizer, LSTMOptimizer, TCNOptimizer, RandomForestOptimizer, TransformerOptimizer
+from optimizers import BaseOptimizer, LSTMOptimizer, TCNOptimizer, RandomForestOptimizer, TransformerOptimizer, XGBoostOptimizer
 
 SEED = 42
 
@@ -19,6 +17,7 @@ DATASET_TO_DEPLOY = 'dataset_b'
 
 DATASETS: List[type[BaseDataset]] = [DatasetB]
 OPTIMIZERS: List[type[BaseOptimizer]] = [
+    XGBoostOptimizer,
     LSTMOptimizer,
     TCNOptimizer,
     RandomForestOptimizer,
@@ -71,7 +70,7 @@ def run_optimizer(optim_cls: type[BaseOptimizer], dataset_cls: type[BaseDataset]
 
     registered_model_name = f"{model_cls.NAME}-{dataset_cls.NAME}-forecast_horizon-{forecast_horizon}"
     print(f"Logging model {model_cls.NAME} to MLflow with name: {registered_model_name}...")
-    if model.NAME == "random_forest":
+    if model.NAME in ["random_forest", "xgboost"]:
         model_info = mlflow.sklearn.log_model(
             model,
             name=registered_model_name,
