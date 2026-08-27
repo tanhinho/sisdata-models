@@ -1,3 +1,4 @@
+import tempfile
 from typing import List
 
 import joblib
@@ -28,13 +29,6 @@ FORECAST_HORIZON = [3]
 
 if not COMMIT_SHA:
     raise EnvironmentError("Missing required env var: COMMIT_SHA")
-
-
-class ModelArtifactWrapper(mlflow.pyfunc.PythonModel):
-    def load_context(self, context):
-        # Artifact paths are resolved automatically by MLflow
-        self.scaler = joblib.load(context.artifacts["scaler"])
-        self.model_weights_path = context.artifacts["model_weights"]
 
 
 def run_optimizer(optim_cls: type[BaseOptimizer], dataset_cls: type[BaseDataset], dataset: BaseDataset, forecast_horizon: int):
@@ -70,6 +64,17 @@ def run_optimizer(optim_cls: type[BaseOptimizer], dataset_cls: type[BaseDataset]
 
     registered_model_name = f"{model_cls.NAME}-{dataset_cls.NAME}-forecast_horizon-{forecast_horizon}"
     print(f"Logging model {model_cls.NAME} to MLflow with name: {registered_model_name}...")
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        target_scaler_path = os.path.join(tmp_dir, "target_scaler.pkl")
+        feature_scaler_path = os.path.join(tmp_dir, "feature_scaler.pkl")
+
+        joblib.dump(dataset.target_scaler, target_scaler_path)
+        joblib.dump(dataset.feature_scaler, feature_scaler_path)
+
+        mlflow.log_artifact(target_scaler_path, artifact_path="scalers")
+        mlflow.log_artifact(feature_scaler_path, artifact_path="scalers")
+
     if model.NAME in ["random_forest", "xgboost"]:
         model_info = mlflow.sklearn.log_model(
             model,
@@ -81,7 +86,7 @@ def run_optimizer(optim_cls: type[BaseOptimizer], dataset_cls: type[BaseDataset]
         model_info = mlflow.pytorch.log_model(
             model,
             name=registered_model_name,
-            registered_model_name=registered_model_name
+            registered_model_name=registered_model_name,
         )
         mlflow.log_metric(key="val_mse", value=test_mse, model_id=model_info.model_id)
 
