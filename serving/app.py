@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
     print(f"Loading scaler for model '{REGISTERED_MODEL_NAME}@{MODEL_ALIAS}'...")
     scaler_path = mlflow.artifacts.download_artifacts(
         run_id=model_version.run_id,
-        artifact_path="preprocessing/scaler.pkl",
+        artifact_path="scalers/scaler.pkl",
     )
     scaler = joblib.load(scaler_path)
     print(f"Scaler loaded successfully for model '{REGISTERED_MODEL_NAME}@{MODEL_ALIAS}'.")
