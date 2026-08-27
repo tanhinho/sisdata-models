@@ -94,8 +94,8 @@ def run_optimizer(optim_cls: type[BaseOptimizer], dataset_cls: type[BaseDataset]
             torch.save(model.state_dict(), weights_path)
 
             model_info = mlflow.pyfunc.log_model(
-                name="tcn_pyfunc_model",
-                registered_model_name="tcn_pyfunc_model",
+                name=registered_model_name,
+                registered_model_name=registered_model_name,
                 python_model=TCNPyFuncWrapper(),
                 artifacts={
                     "weights": weights_path,
