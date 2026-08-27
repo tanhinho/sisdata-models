@@ -8,6 +8,15 @@ from datasets.base_dataset import BaseDataset
 from models.base_model import BaseModel
 
 
+class TCNPyFuncWrapper(mlflow.pyfunc.PythonModel):
+    def load_context(self, context):
+        self.model = TCNModel(None)
+        self.model.load_state_dict(torch.load(context.artifacts["weights"]))
+
+    def predict(self, model_input):
+        return self.model(model_input)
+
+
 class Chomp1d(nn.Module):
     def __init__(self, chomp_size: int):
         super().__init__()
@@ -73,6 +82,7 @@ class TCNModel(BaseModel):
     def __init__(
         self,
         dataset: BaseDataset,
+        num_inputs: int,
         is_optimizing: bool = False,
         hidden_size: int = 64,
         num_layers: int = 3,
@@ -91,7 +101,6 @@ class TCNModel(BaseModel):
         self.epochs = epochs
         self.batch_size = batch_size
 
-        num_inputs = len(self.dataset.FEATURE_COLS)
         num_channels = [hidden_size] * num_layers
 
         self.tcn = TemporalConvNet(num_inputs, num_channels,

@@ -4,14 +4,17 @@ from typing import List
 import joblib
 import mlflow
 import os
+
+import torch
 from datasets import BaseDataset, DatasetA, DatasetB, DatasetC, DatasetD
 from optimizers import BaseOptimizer, LSTMOptimizer, TCNOptimizer, RandomForestOptimizer, TransformerOptimizer, XGBoostOptimizer
+from models import TCNPyFuncWrapper
 
 SEED = 42
 
 COMMIT_SHA = os.getenv('COMMIT_SHA', 'local-dev')
 MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI', 'http://localhost:5050')
-MLFLOW_EXPERIMENT_NAME = os.getenv('MLFLOW_EXPERIMENT_NAME', 'local-experiment')
+MLFLOW_EXPERIMENT_NAME = os.getenv('MLFLOW_EXPERIMENT_NAME', 'local-experiments')
 MODEL_TO_DEPLOY = 'lstm'
 FORECAST_HORIZON_TO_DEPLOY = 3
 DATASET_TO_DEPLOY = 'dataset_a'
@@ -45,22 +48,27 @@ def run_optimizer(optim_cls: type[BaseOptimizer], dataset_cls: type[BaseDataset]
     optimizer = optim_cls(dataset=dataset, seed=SEED, forecast_horizon=forecast_horizon)
     print(f"Running {model_cls.NAME} optimizer for {dataset_cls.NAME}...")
     study = optimizer.optimize()
+    best_params = study.best_params
     print(f"Optimizer completed for dataset {dataset_cls.NAME}.\n")
-    print(f"Best parameters found: {study.best_params}")
+    print(f"Best parameters found: {best_params}")
     print(f"Best mse achieved: {study.best_value}\n")
     print(f"Training model {model_cls.NAME} with best parameters...")
+
+    # Log the child's best parameters to the parent run
+    # To get more information, access the child runs in MLflow UI
+    mlflow.log_params(best_params)
+
+    if model_cls.NAME == "tcn":
+        best_params["num_inputs"] = len(dataset.FEATURE_COLS)
+
     model = model_cls(
         dataset=dataset,
         is_optimizing=False,
         forecast_horizon=forecast_horizon,
-        **study.best_params,
+        **best_params,
     )
     test_mse = model.fit_and_evaluate(run_name=f"final_model")
     print(f"Model {model_cls.NAME} trained. Test mse: {test_mse}\n")
-
-    # Log the child's best parameters to the parent run
-    # To get more information, access the child runs in MLflow UI
-    mlflow.log_params(study.best_params)
 
     registered_model_name = f"{model_cls.NAME}-{dataset_cls.NAME}-forecast_horizon-{forecast_horizon}"
     print(f"Logging model {model_cls.NAME} to MLflow with name: {registered_model_name}...")
@@ -75,19 +83,31 @@ def run_optimizer(optim_cls: type[BaseOptimizer], dataset_cls: type[BaseDataset]
         mlflow.log_artifact(target_scaler_path, artifact_path="scalers")
         mlflow.log_artifact(feature_scaler_path, artifact_path="scalers")
 
-    if model.NAME in ["random_forest", "xgboost"]:
-        model_info = mlflow.sklearn.log_model(
-            model,
-            name=registered_model_name,
-            registered_model_name=registered_model_name,
-        )
-        mlflow.log_metric(key="val_mse", value=test_mse, model_id=model_info.model_id)
-    elif model.NAME != "tcn":
-        model_info = mlflow.pytorch.log_model(
-            model,
-            name=registered_model_name,
-            registered_model_name=registered_model_name,
-        )
+        if model.NAME in ["random_forest", "xgboost"]:
+            model_info = mlflow.sklearn.log_model(
+                model,
+                name=registered_model_name,
+                registered_model_name=registered_model_name,
+            )
+        elif model.NAME == "tcn":
+            weights_path = os.path.join(tmp_dir, "tcn_weights.pt")
+            torch.save(model.state_dict(), weights_path)
+
+            model_info = mlflow.pyfunc.log_model(
+                name="tcn_pyfunc_model",
+                registered_model_name="tcn_pyfunc_model",
+                python_model=TCNPyFuncWrapper(),
+                artifacts={
+                    "weights": weights_path,
+                }
+            )
+        else:
+            model_info = mlflow.pytorch.log_model(
+                model,
+                name=registered_model_name,
+                registered_model_name=registered_model_name,
+            )
+
         mlflow.log_metric(key="val_mse", value=test_mse, model_id=model_info.model_id)
 
     mlflow.end_run()
@@ -114,6 +134,7 @@ def run_training():
 def update_best_model():
     # Get all models ordered by accuracy
     registered_model_name = f"{MODEL_TO_DEPLOY}-{DATASET_TO_DEPLOY}-forecast_horizon-{FORECAST_HORIZON_TO_DEPLOY}"
+    print(f"Promoting best model for registered model name: {registered_model_name}...")
 
     models = mlflow.search_logged_models(
         filter_string=f"name='{registered_model_name}'",
