@@ -65,7 +65,7 @@ class BaseDataset(ABC):
 
         This method fits a StandardScaler on the training set and transforms the training, validation, and test sets accordingly.
         The scaled values are stored in the respective DataFrames (df_train, df_val, df_test),
-        and the scalers are stored as attributes (scaler for features, target_scaler for the target).
+        and the scalers are stored as attributes (feature_scaler for features, target_scaler for the target).
         If SCALE_TARGET is set to False, the target values will not be scaled, and target_scaler will be set to None.
 
         Args:
@@ -74,14 +74,14 @@ class BaseDataset(ABC):
             df_test (pd.DataFrame): The test set.
         """
         # Scale features (fit ONLY on train set)
-        self.scaler = StandardScaler()
-        df_train[self.FEATURE_COLS] = self.scaler.fit_transform(
+        self.feature_scaler = StandardScaler()
+        df_train[self.FEATURE_COLS] = self.feature_scaler.fit_transform(
             df_train[self.FEATURE_COLS]
         )
-        df_val[self.FEATURE_COLS] = self.scaler.transform(
+        df_val[self.FEATURE_COLS] = self.feature_scaler.transform(
             df_val[self.FEATURE_COLS]
         )
-        df_test[self.FEATURE_COLS] = self.scaler.transform(
+        df_test[self.FEATURE_COLS] = self.feature_scaler.transform(
             df_test[self.FEATURE_COLS]
         )
 
