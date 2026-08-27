@@ -19,7 +19,7 @@ class TransformerOptimizer(BaseOptimizer):
         dropout = trial.suggest_float("dropout", 0.0, 0.5)
         seq_length = trial.suggest_int("seq_length", 5, 15)
         lr = trial.suggest_float("lr", 1e-5, 1e-2, log=True)
-        epochs = trial.suggest_int("epochs", 10, 30)
+        epochs = trial.suggest_int("epochs", 10, 50)
         batch_size = trial.suggest_categorical("batch_size", [16, 32, 64, 128])
 
         model = self.MODEL(
