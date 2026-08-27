@@ -13,9 +13,11 @@ SEED = 42
 COMMIT_SHA = os.getenv('COMMIT_SHA', 'local-dev')
 MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI', 'http://localhost:5050')
 MLFLOW_EXPERIMENT_NAME = os.getenv('MLFLOW_EXPERIMENT_NAME', 'local-experiment')
-REGISTERED_MODEL_NAME = "fish-growth"
+MODEL_TO_DEPLOY = 'lstm'
+FORECAST_HORIZON_TO_DEPLOY = 3
+DATASET_TO_DEPLOY = 'dataset_b'
 
-DATASETS: List[type[BaseDataset]] = [DatasetB, DatasetC, DatasetD]
+DATASETS: List[type[BaseDataset]] = [DatasetB]
 OPTIMIZERS: List[type[BaseOptimizer]] = [
     LSTMOptimizer,
     TCNOptimizer,
@@ -67,60 +69,22 @@ def run_optimizer(optim_cls: type[BaseOptimizer], dataset_cls: type[BaseDataset]
     # To get more information, access the child runs in MLflow UI
     mlflow.log_params(study.best_params)
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Save the model to a temporary directory
-        model_path = os.path.join(tmpdir, "model.pt")
-        scaler_path = os.path.join(tmpdir, "scaler.pkl")
-
-        # Get the underlying PyTorch model
-        torch.save(model.state_dict(), model_path)
-        joblib.dump(model.dataset.scaler, scaler_path)
-
-        artifacts = {
-            "model": model_path,
-            "scaler": scaler_path,
-        }
-
-        mlflow.pyfunc.log_model(
-            name="model",
-            registered_model_name="fish-growth",
-            python_model=ModelArtifactWrapper(),
-            artifacts=artifacts,
+    registered_model_name = f"{model_cls.NAME}-{dataset_cls.NAME}-forecast_horizon-{forecast_horizon}"
+    print(f"Logging model {model_cls.NAME} to MLflow with name: {registered_model_name}...")
+    if model.NAME == "random_forest":
+        model_info = mlflow.sklearn.log_model(
+            model,
+            name=registered_model_name,
+            registered_model_name=registered_model_name,
         )
-
-    # Save the parent run ID before leaving the run.
-    run_id = mlflow.active_run().info.run_id
-
-    # Register this model as a new version of the same registered model.
-    model_uri = f"runs:/{run_id}/model"
-    model_version = mlflow.register_model(model_uri=model_uri, name=REGISTERED_MODEL_NAME)
-    mlflow.set_tag("model_version", model_version.version)
-
-    client = mlflow.MlflowClient()
-    client.set_model_version_tag(
-        name=REGISTERED_MODEL_NAME,
-        version=model_version.version,
-        key="sha",
-        value=COMMIT_SHA
-    )
-    client.set_model_version_tag(
-        name=REGISTERED_MODEL_NAME,
-        version=model_version.version,
-        key="dataset",
-        value=dataset_cls.NAME
-    )
-    client.set_model_version_tag(
-        name=REGISTERED_MODEL_NAME,
-        version=model_version.version,
-        key="architecture",
-        value=model_cls.NAME
-    )
-
-    print(
-        f"Registered {model_cls.NAME} as "
-        f"{REGISTERED_MODEL_NAME} "
-        f"version {model_version.version}"
-    )
+        mlflow.log_metric(key="val_mse", value=test_mse, model_id=model_info.model_id)
+    elif model.NAME != "tcn":
+        model_info = mlflow.pytorch.log_model(
+            model,
+            name=registered_model_name,
+            registered_model_name=registered_model_name
+        )
+        mlflow.log_metric(key="val_mse", value=test_mse, model_id=model_info.model_id)
 
     mlflow.end_run()
 
@@ -144,80 +108,33 @@ def run_training():
 
 
 def update_best_model():
+    # Get all models ordered by accuracy
+    registered_model_name = f"{MODEL_TO_DEPLOY}-{DATASET_TO_DEPLOY}-forecast_horizon-{FORECAST_HORIZON_TO_DEPLOY}"
+
+    models = mlflow.search_logged_models(
+        filter_string=f"name='{registered_model_name}'",
+        order_by=[{
+            "field_name": "metrics.val_mse",
+            "ascending": False
+        }],
+        output_format="list",)
+    best_model = models[0]
+
     client = mlflow.MlflowClient()
-    experiment = client.get_experiment_by_name(MLFLOW_EXPERIMENT_NAME)
 
-    if experiment is None:
-        raise RuntimeError(f"Experiment '{MLFLOW_EXPERIMENT_NAME}' not found")
-
-    experiment_id = experiment.experiment_id
-
-    # Get all parent model runs created by this commit
-    current_runs = client.search_runs(
-        experiment_ids=[experiment_id],
-        filter_string=(
-            f"tags.sha = '{COMMIT_SHA}' "
-            "AND tags.run_type = 'parent'"
-        ),
-        order_by=["metrics.val_mse ASC"],
+    model_versions = client.search_model_versions(
+        f"name = '{registered_model_name}' and run_id = '{best_model.source_run_id}'"
     )
+    best_version = model_versions[0].version
 
-    if not current_runs:
-        raise RuntimeError(
-            f"No parent runs found for commit {COMMIT_SHA}"
-        )
-
-    # Best model from the current commit
-    current_best = current_runs[0]
-    current_best_mse = current_best.data.metrics["val_mse"]
-    current_best_version = current_best.data.tags.get("model_version")
+    # Promote the best model by assigning the "best" alias
+    client.set_registered_model_alias(registered_model_name, "best", best_version)
 
     print(
-        f"Best model for {COMMIT_SHA}: "
-        f"{current_best.info.run_id} "
-        f"(version={current_best_version}, mse={current_best_mse})"
+        f"Best model: {registered_model_name},"
+        f" run_id: {best_model.source_run_id},"
+        f" version: {best_version}"
     )
-
-    # Find the model currently marked as best
-    try:
-        previous_best = client.get_model_version_by_alias(name=REGISTERED_MODEL_NAME, alias="best")
-
-        previous_best_run = client.get_run(previous_best.run_id)
-        previous_best_mse = previous_best_run.data.metrics["val_mse"]
-    except mlflow.exceptions.RestException:
-        previous_best = None
-
-    # No previous best, best from this commit automatically becomes best
-    if previous_best is None:
-        client.set_registered_model_alias(
-            name=REGISTERED_MODEL_NAME,
-            alias="best",
-            version=current_best_version
-        )
-        print(f"No previous best model. Version {current_best_version} is now the best.")
-        return
-
-    print(
-        f"Previous best: {previous_best_run.info.run_id} "
-        f"(version={previous_best.version}, mse={previous_best_mse})"
-    )
-
-    # Only replace the best model if the new one is better
-    if current_best_mse < previous_best_mse:
-        # Mark new model as best
-        client.set_registered_model_alias(
-            name=REGISTERED_MODEL_NAME,
-            alias="best",
-            version=current_best_version
-        )
-
-        print(
-            f"New best model! "
-            f"{current_best_mse} < {previous_best_mse}"
-        )
-
-    else:
-        print("Current models did not beat the existing best.")
 
 
 def main():
