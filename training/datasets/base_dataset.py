@@ -1,14 +1,10 @@
 from abc import ABC, abstractmethod
 from typing import Tuple
 
-import lightgbm as lgb
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.inspection import permutation_importance
 from sklearn.preprocessing import StandardScaler
 import torch
-import matplotlib.pyplot as plt
 
 
 class BaseDataset(ABC):
@@ -137,102 +133,6 @@ class BaseDataset(ABC):
         shape = scaled_target.shape
         unscaled = self.target_scaler.inverse_transform(scaled_target.reshape(-1, 1))
         return unscaled.reshape(shape)
-
-    def _select_features(
-        self,
-        df_train: pd.DataFrame,
-        df_val: pd.DataFrame,
-        df_test: pd.DataFrame,
-    ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-
-        X_train = df_train[self.FEATURE_COLS]
-        y_train = df_train[self.TARGET_COL]
-
-        X_val = df_val[self.FEATURE_COLS]
-        y_val = df_val[self.TARGET_COL]
-
-        # Train LightGBM ONLY on training data
-        model = lgb.LGBMRegressor(
-            n_estimators=300,
-            learning_rate=0.05,
-            num_leaves=31,
-            random_state=42,
-            n_jobs=-1,
-            verbosity=-1,
-        )
-
-        print(f"Training LightGBM for feature importance on {self.NAME}...")
-
-        model.fit(X_train, y_train)
-
-        print("Training complete. Calculating permutation importance...")
-
-        # Calculate permutation importance on training data
-        result = permutation_importance(
-            model,
-            X_val,
-            y_val,
-            n_repeats=10,
-            random_state=42,
-            n_jobs=-1,
-        )
-
-        importance = pd.DataFrame(
-            {
-                "importance": result.importances_mean,
-                "std": result.importances_std,
-            },
-            index=self.FEATURE_COLS,
-        ).sort_values("importance")
-
-        # Plot
-        fig, ax = plt.subplots(figsize=(8, 5))
-
-        ax.barh(
-            importance.index,
-            importance["importance"],
-            xerr=importance["std"],
-        )
-
-        ax.set_xlabel("Permutation Importance")
-        ax.set_ylabel("Feature")
-        ax.set_title("Feature Importance - LightGBM")
-        fig.tight_layout()
-
-        # Save instead of plt.show()
-        plot_path = f"feature_importance_{self.NAME}.png"
-        fig.savefig(plot_path, dpi=300, bbox_inches="tight")
-        plt.close(fig)
-
-        print(f"Feature importance plot saved to: {plot_path}")
-
-        print("\nFeature importance:")
-        print(importance)
-
-        # Select features above threshold
-        threshold = 0.01
-
-        selected_features = importance[
-            importance["importance"] > threshold
-        ].index.tolist()
-
-        print("\nSelected features:")
-        print(selected_features)
-
-        # Update FEATURE_COLS
-        self.FEATURE_COLS = selected_features
-
-        # Keep only selected features + target + date
-        columns = selected_features + [
-            self.TARGET_COL,
-            "date",
-        ]
-
-        df_train = df_train[columns].copy()
-        df_val = df_val[columns].copy()
-        df_test = df_test[columns].copy()
-
-        return df_train, df_val, df_test
 
     def create_sequences(
         self,
