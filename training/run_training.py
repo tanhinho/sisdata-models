@@ -19,7 +19,7 @@ MODEL_TO_DEPLOY = 'lstm'
 FORECAST_HORIZON_TO_DEPLOY = 3
 DATASET_TO_DEPLOY = 'dataset_a'
 
-DATASETS: List[type[BaseDataset]] = [DatasetA, DatasetB, DatasetC, DatasetD]
+DATASETS: List[type[BaseDataset]] = [DatasetB, DatasetD]
 OPTIMIZERS: List[type[BaseOptimizer]] = [
     XGBoostOptimizer,
     LSTMOptimizer,
