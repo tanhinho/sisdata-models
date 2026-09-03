@@ -15,13 +15,12 @@ SEED = 42
 COMMIT_SHA = os.getenv('COMMIT_SHA', 'local-dev')
 MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI', 'http://localhost:5050')
 MLFLOW_EXPERIMENT_NAME = os.getenv('MLFLOW_EXPERIMENT_NAME', 'local-experiments')
-MODEL_TO_DEPLOY = 'lstm'
+MODEL_TO_DEPLOY = 'tcn'
 FORECAST_HORIZON_TO_DEPLOY = 3
 DATASET_TO_DEPLOY = 'dataset_a'
 
-DATASETS: List[type[BaseDataset]] = [DatasetB, DatasetD]
+DATASETS: List[type[BaseDataset]] = [DatasetA, DatasetB, DatasetC, DatasetD]
 OPTIMIZERS: List[type[BaseOptimizer]] = [
-    XGBoostOptimizer,
     LSTMOptimizer,
     TCNOptimizer,
     RandomForestOptimizer,
