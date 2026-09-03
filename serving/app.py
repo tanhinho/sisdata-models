@@ -8,7 +8,7 @@ from fastapi import FastAPI
 
 from .schemas import PredictionRequest, PredictionResponse
 
-REGISTERED_MODEL_NAME = "fish-growth"
+REGISTERED_MODEL_NAME = "tcn-dataset_a-forecast_horizon-3"
 MODEL_ALIAS = os.getenv("MODEL_ALIAS", "best")
 MLFLOW_TRACKING_URI = os.getenv(
     "MLFLOW_TRACKING_URI",
